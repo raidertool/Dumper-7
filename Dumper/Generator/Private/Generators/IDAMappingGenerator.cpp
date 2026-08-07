@@ -11,6 +11,12 @@
 /* For function definition generation. */
 #include "Generators/CppGenerator.h"
 
+namespace
+{
+	std::unordered_map<std::string, IDAMappingsLayouts::StringOffset> GNameMap;
+	std::unordered_map<uint32, std::string> GFunctions;
+}
+
 class CppGeneratorAccessor
 {
 public:
@@ -142,11 +148,9 @@ IDAMappingsLayouts::StringOffset IDAMappingGenerator::AddNameToData(std::strings
 {
 	if constexpr (Settings::MappingGenerator::bShouldCheckForDuplicatedNames)
 	{
-		static std::unordered_map<std::string, IDAMappingsLayouts::StringOffset> NameMap;
-
 		const IDAMappingsLayouts::StringOffset CurrentOffset = static_cast<IDAMappingsLayouts::StringOffset>(NameTable.tellp());
 
-		auto [It, bInserted] = NameMap.insert({ Name, CurrentOffset });
+		auto [It, bInserted] = GNameMap.insert({ Name, CurrentOffset });
 
 		if (bInserted)
 		{
@@ -796,8 +800,6 @@ std::string IDAMappingGenerator::BuildExecFuncSignature(UEFunction Func)
 
 void IDAMappingGenerator::GenerateClassFunctions(std::stringstream& ExecFuncData, std::stringstream& NameData, UEClass Class)
 {
-	static std::unordered_map<uint32, std::string> Funcs;
-
 	StructWrapper WrappedClass(Class);
 	MemberManager Members = WrappedClass.GetMembers();
 	for (const FunctionWrapper WrappedFunc : Members.IterateFunctions())
@@ -810,7 +812,7 @@ void IDAMappingGenerator::GenerateClassFunctions(std::stringstream& ExecFuncData
 		const std::string MangledName = MangleUFunctionName(Class.GetCppName(), Func.GetValidName());
 		const uint32 Offset = static_cast<uint32>(Platform::GetOffset(Func.GetExecFunction()));
 
-		auto [It, bInserted] = Funcs.emplace(Offset, Func.GetFullName());
+		auto [It, bInserted] = GFunctions.emplace(Offset, Func.GetFullName());
 
 		if (!bInserted)
 			continue;
@@ -921,6 +923,9 @@ uint32 IDAMappingGenerator::GenerateInternalEnums(std::stringstream& EnumData, s
 
 void IDAMappingGenerator::Generate()
 {
+	GNameMap.clear();
+	GFunctions.clear();
+
 	std::stringstream NameData;
 	std::stringstream EnumData;
 	std::stringstream StructData;
