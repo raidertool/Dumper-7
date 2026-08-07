@@ -141,6 +141,7 @@ public:
 	 * \param directory valid directory
 	 */
 	static void setDirectory(const std::filesystem::path& directory);
+	static void reset();
 
 	/**
 	 * \brief 

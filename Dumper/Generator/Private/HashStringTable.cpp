@@ -30,6 +30,14 @@ HashStringTable::~HashStringTable()
     }
 }
 
+void HashStringTable::Clear()
+{
+	for (StringBucket& Bucket : Buckets)
+	{
+		Bucket.Size = 0x0;
+	}
+}
+
 
 bool HashStringTable::CanFit(const StringBucket& Bucket, int32 StrLengthBytes) const
 {
@@ -238,4 +246,3 @@ void HashStringTable::DebugPrintStats() const
 
     std::cerr << "\n" << std::endl;
 }
-

@@ -15,6 +15,8 @@
 
 class IDAMappingGenerator
 {
+	friend class Generator;
+
 private:
     using StreamType = std::ofstream;
 

@@ -267,3 +267,11 @@ void StructManager::Init()
 	if (const UEObject UStructClass = ObjectArray::FindClassFast("struct"))
 		StructInfoOverrides.find(UStructClass.GetIndex())->second.Name = UniqueNameTable.FindOrAdd(std::string("UStruct"), false).first;
 }
+
+void StructManager::Reset()
+{
+	UniqueNameTable.Clear();
+	StructInfoOverrides.clear();
+	CyclicStructsAndPackages.clear();
+	bIsInitialized = false;
+}

@@ -285,6 +285,7 @@ private:
 
 public:
     const StringEntry& operator[](HashStringTableIndex Index) const;
+	void Clear();
 
 public:
     const StringBucket& GetBucket(uint32 Index) const;

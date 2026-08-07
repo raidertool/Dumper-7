@@ -1,5 +1,9 @@
 
 #include "Generators/Generator.h"
+#include "Generators/CppGenerator.h"
+#include "Generators/MappingGenerator.h"
+#include "Generators/IDAMappingGenerator.h"
+#include "Generators/DumpspaceGenerator.h"
 #include "Managers/StructManager.h"
 #include "Managers/EnumManager.h"
 #include "Managers/MemberManager.h"
@@ -10,8 +14,12 @@
 
 #include "Platform.h"
 #include "Json/json.hpp"
+#include "Dumpspace/DSGen.h"
 
+#include <chrono>
 #include <fstream>
+#include <iostream>
+#include <stdexcept>
 
 inline void InitSettings()
 {
@@ -74,6 +82,92 @@ void Generator::InitInternal()
 
 	// Post-Initialize PackageManager after StructManager has been initialized. 'PostInit()' handles Cyclic-Dependencies detection
 	PackageManager::PostInit();
+}
+
+void Generator::ResetGenerationState(bool bWriteObjectDumps)
+{
+	DumperFolder.clear();
+	bDumpedGObjects = !bWriteObjectDumps;
+	bDumepdEditorOnlyMetadata = !bWriteObjectDumps;
+
+	PackageManager::Reset();
+	StructManager::Reset();
+	EnumManager::Reset();
+	MemberManager::Reset();
+
+	CppGenerator::PredefinedMembers.clear();
+	CppGenerator::PredefinedStructs.clear();
+	CppGenerator::MainFolder.clear();
+	CppGenerator::Subfolder.clear();
+
+	MappingGenerator::NameCounter = 0x0;
+	MappingGenerator::PredefinedMembers.clear();
+	MappingGenerator::MainFolder.clear();
+	MappingGenerator::Subfolder.clear();
+
+	IDAMappingGenerator::NameCounter = 0x0;
+	IDAMappingGenerator::PredefinedMembers.clear();
+	IDAMappingGenerator::MainFolder.clear();
+	IDAMappingGenerator::Subfolder.clear();
+
+	DumpspaceGenerator::PredefinedMembers.clear();
+	DumpspaceGenerator::MainFolder.clear();
+	DumpspaceGenerator::Subfolder.clear();
+	DSGen::reset();
+}
+
+void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
+{
+	std::cerr << "Started Generation [Dumper-7]!\n";
+	auto DumpStartTime = std::chrono::high_resolution_clock::now();
+
+	ResetGenerationState(bWriteObjectDumps);
+	InitInternal();
+
+	if (bGenerateCppSdk)
+	{
+		try
+		{
+			Generate<CppGenerator>();
+		}
+		catch (const std::exception& Error)
+		{
+			throw std::runtime_error(std::string("CppGenerator failed: ") + Error.what());
+		}
+	}
+	try
+	{
+		Generate<MappingGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("MappingGenerator failed: ") + Error.what());
+	}
+	try
+	{
+		Generate<IDAMappingGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("IDAMappingGenerator failed: ") + Error.what());
+	}
+	try
+	{
+		Generate<DumpspaceGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("DumpspaceGenerator failed: ") + Error.what());
+	}
+
+	auto DumpFinishTime = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> DumpTime = DumpFinishTime - DumpStartTime;
+	std::cerr << "\n\nGenerating SDK took (" << DumpTime.count() << "ms)\n\n\n";
+
+	if (bGenerateCppSdk && Settings::Debug::bExecuteSDKTestScript)
+	{
+		CppGenerator::ExecuteSDKCompilationTestScript();
+	}
 }
 
 bool Generator::SetupDumperFolder()

@@ -119,6 +119,7 @@ private:
 
 public:
 	static void Init();
+	static void Reset();
 
 private:
 	static inline const StringEntry& GetEnumName(const EnumInfo& Info)
@@ -150,4 +151,3 @@ public:
 		return EnumInfoOverrides.at(Enum.GetIndex());
 	}
 };
-

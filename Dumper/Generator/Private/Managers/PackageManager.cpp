@@ -586,6 +586,15 @@ void PackageManager::Init()
 	InitNames();
 }
 
+void PackageManager::Reset()
+{
+	UniquePackageNameTable.Clear();
+	PackageInfos.clear();
+	CurrentIterationHitCount = 0x0;
+	bIsInitialized = false;
+	bIsPostInitialized = false;
+}
+
 void PackageManager::PostInit()
 {
 	if (bIsPostInitialized)

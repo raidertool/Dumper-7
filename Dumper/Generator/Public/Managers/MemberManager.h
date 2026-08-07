@@ -185,6 +185,7 @@ private:
 
 	/* CollisionManager containing information on colliding member-/function-names */
 	static inline CollisionManager MemberNames;
+	static inline bool bIsInitialized = false;
 
 private:
 	const std::shared_ptr<StructWrapper> Struct;
@@ -226,12 +227,10 @@ public:
 
 	static inline void Init()
 	{
-		static bool bInitialized = false;
-
-		if (bInitialized)
+		if (bIsInitialized)
 			return;
 
-		bInitialized = true;
+		bIsInitialized = true;
 
 		/* Adds special names first, to avoid name-collisions with predefined members */
 		InitReservedNames();
@@ -246,6 +245,13 @@ public:
 		}
 
 		FixIncorrectNames();
+	}
+
+	static inline void Reset()
+	{
+		PredefinedMemberLookup = nullptr;
+		MemberNames.Clear();
+		bIsInitialized = false;
 	}
 
 	static inline void AddStructToNameContainer(UEStruct Struct)

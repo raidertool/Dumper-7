@@ -250,3 +250,12 @@ void EnumManager::Init()
 	InitIllegalNames(); // call this first
 	InitInternal();
 }
+
+void EnumManager::Reset()
+{
+	UniqueEnumNameTable.Clear();
+	EnumInfoOverrides.clear();
+	UniqueEnumValueNames.Clear();
+	IllegalNames.clear();
+	bIsInitialized = false;
+}

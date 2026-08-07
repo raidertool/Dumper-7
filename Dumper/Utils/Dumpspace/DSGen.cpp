@@ -13,6 +13,17 @@ void DSGen::setDirectory(const std::filesystem::path& directory)
 	dumpTimeStamp = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
+void DSGen::reset()
+{
+	dumpTimeStamp.clear();
+	directory.clear();
+	offsets.clear();
+	classes = nlohmann::json::array();
+	structs = nlohmann::json::array();
+	functions = nlohmann::json::array();
+	enums = nlohmann::json::array();
+}
+
 void DSGen::addOffset(const std::string& name, uintptr_t offset)
 {
 	offsets.push_back(std::pair(name, offset));

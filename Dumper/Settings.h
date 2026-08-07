@@ -22,6 +22,8 @@ namespace Settings
 		inline int SleepTimeout = 0;
 		inline int DumpKey = 0;
 		inline bool bUnloadAfterDump = false;
+		inline bool bContinuous = false;
+		inline std::string ControlPipeName;
 		inline std::string SDKNamespaceName = "SDK";
 
 		void Load();
