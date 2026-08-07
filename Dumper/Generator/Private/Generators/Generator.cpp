@@ -19,6 +19,7 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 
 inline void InitSettings()
 {
@@ -124,10 +125,40 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	InitInternal();
 
 	if (bGenerateCppSdk)
-		Generate<CppGenerator>();
-	Generate<MappingGenerator>();
-	Generate<IDAMappingGenerator>();
-	Generate<DumpspaceGenerator>();
+	{
+		try
+		{
+			Generate<CppGenerator>();
+		}
+		catch (const std::exception& Error)
+		{
+			throw std::runtime_error(std::string("CppGenerator failed: ") + Error.what());
+		}
+	}
+	try
+	{
+		Generate<MappingGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("MappingGenerator failed: ") + Error.what());
+	}
+	try
+	{
+		Generate<IDAMappingGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("IDAMappingGenerator failed: ") + Error.what());
+	}
+	try
+	{
+		Generate<DumpspaceGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("DumpspaceGenerator failed: ") + Error.what());
+	}
 
 	auto DumpFinishTime = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> DumpTime = DumpFinishTime - DumpStartTime;
