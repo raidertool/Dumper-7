@@ -37,17 +37,20 @@ enum class EFortToastType : uint8
 
 DWORD MainThread(HMODULE Module)
 {
-	AllocConsole();
 	FILE* ConsoleInput = nullptr;
 	FILE* ConsoleError = nullptr;
-	freopen_s(&ConsoleInput, "CONIN$", "r", stdin);
-	freopen_s(&ConsoleError, "CONOUT$", "w", stderr);
-	std::cerr.clear();
-	std::cerr << std::boolalpha << std::hex;
-
-	std::cerr << "Initializing [Dumper-7]\n";
-
 	Settings::Config::Load();
+	const bool HasConsole = !Settings::Config::bContinuous;
+	if (HasConsole)
+	{
+		AllocConsole();
+		freopen_s(&ConsoleInput, "CONIN$", "r", stdin);
+		freopen_s(&ConsoleError, "CONOUT$", "w", stderr);
+		std::cerr.clear();
+		std::cerr << std::boolalpha << std::hex;
+		std::cerr << "Initializing [Dumper-7]\n";
+	}
+
 	Settings::Config::DelayDumperStart();
 
 	Generator::InitEngineCore();
@@ -63,7 +66,8 @@ DWORD MainThread(HMODULE Module)
 			fclose(ConsoleInput);
 		if (ConsoleError)
 			fclose(ConsoleError);
-		FreeConsole();
+		if (HasConsole)
+			FreeConsole();
 		FreeLibraryAndExitThread(Module, 0);
 	};
 
@@ -83,7 +87,10 @@ DWORD MainThread(HMODULE Module)
 		{
 			std::cerr << "Continuous controller failed: " << Error.what() << "\n";
 		}
-		UnloadDumper();
+
+		// The controller has detached, but the DLL intentionally remains resident.
+		// Unloading after repeated generation needs separate lifecycle validation.
+		return 0;
 	}
 
 	Generator::GenerateSnapshot();
