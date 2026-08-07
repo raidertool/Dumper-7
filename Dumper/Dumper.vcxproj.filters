@@ -2,6 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="ContinuousController.cpp" />
     <ClCompile Include="Generator\Private\Managers\CollisionManager.cpp">
       <Filter>Generator\Private\Managers</Filter>
     </ClCompile>
@@ -83,6 +84,7 @@
     <ClCompile Include="Generator\Private\SharedPredefinedMembers.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ContinuousController.h" />
     <Filter Include="Engine">
       <UniqueIdentifier>{0b2e1251-929c-4f5b-bd97-9f43d1e3d1a5}</UniqueIdentifier>
     </Filter>

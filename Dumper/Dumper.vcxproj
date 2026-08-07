@@ -293,6 +293,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ContinuousController.cpp" />
     <ClCompile Include="Engine\Private\OffsetFinder\OffsetFinder.cpp" />
     <ClCompile Include="Generator\Private\Generators\DumpspaceGenerator.cpp" />
     <ClCompile Include="Engine\Private\Unreal\NameArray.cpp" />
@@ -325,6 +326,7 @@
     <ClCompile Include="Generator\Private\Wrappers\StructWrapper.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ContinuousController.h" />
     <ClInclude Include="Generator\Public\Generators\DumpspaceGenerator.h" />
     <ClInclude Include="Generator\Public\Generators\IDAMappingGenerator.h" />
     <ClInclude Include="Platform\Private\Arch_x86.h" />

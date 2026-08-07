@@ -133,6 +133,15 @@ private:
 	uint64 AddNameToContainer(NameContainer& StructNames, UEStruct Struct, std::pair<HashStringTableIndex, bool>&& NamePair, ECollisionType CurrentType, bool bIsStruct, UEFunction Func = nullptr);
 
 public:
+	void Clear()
+	{
+		MemberNames.Clear();
+		NameInfos.clear();
+		TranslationMap.clear();
+		ClassReservedNames.clear();
+		ReservedNames.clear();
+	}
+
 	/* For external use by 'MemberManager::InitReservedNames()' */
 	void AddReservedClassName(const std::string& Name, bool bIsParameterOrLocalVariable);
 	void AddReservedName(const std::string& Name);
@@ -176,4 +185,3 @@ public:
 		NameInfo.Name = Index;
 	}
 };
-

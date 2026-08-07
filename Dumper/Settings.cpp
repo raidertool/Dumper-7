@@ -204,6 +204,11 @@ void Settings::Config::Load()
 	}
 
 	bUnloadAfterDump = GetPrivateProfileIntA("Settings", "UnloadAfterDump", 0, ConfigPath) != 0;
+	bContinuous = GetPrivateProfileIntA("Settings", "Continuous", 0, ConfigPath) != 0;
+
+	char PipeName[256] = {};
+	GetPrivateProfileStringA("Settings", "ControlPipeName", "", PipeName, sizeof(PipeName), ConfigPath);
+	ControlPipeName = PipeName;
 }
 
 void Settings::Config::DelayDumperStart()

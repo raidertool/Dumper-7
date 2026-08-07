@@ -102,6 +102,7 @@ private:
 
 public:
 	static void Init();
+	static void Reset();
 
 private:
 	static inline const StringEntry& GetName(const StructInfo& Info)
@@ -158,4 +159,3 @@ public:
 		CyclicStructsAndPackages[StructIndex].insert(PackageIndex);
 	}
 };
-

@@ -49,6 +49,8 @@ private:
 public:
     static void InitEngineCore();
     static void InitInternal();
+	static void ResetGenerationState(bool bWriteObjectDumps = true);
+	static void GenerateSnapshot(bool bGenerateCppSdk = true, bool bWriteObjectDumps = true);
 
 private:
     static bool SetupDumperFolder();

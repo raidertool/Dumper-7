@@ -62,6 +62,8 @@
 
 class MappingGenerator
 {
+	friend class Generator;
+
 private:
     using StreamType = std::ofstream;
 

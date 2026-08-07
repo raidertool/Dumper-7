@@ -242,6 +242,7 @@ private:
 public:
 	static void Init();
 	static void PostInit();
+	static void Reset();
 
 private:
 	static inline const StringEntry& GetPackageName(const PackageInfo& Info)
