@@ -22,9 +22,10 @@ enum class EFortToastType : uint8
 DWORD MainThread(HMODULE Module)
 {
 	AllocConsole();
-	FILE* Dummy;
-	freopen_s(&Dummy, "CONIN$", "r", stdin);
-	freopen_s(&Dummy, "CONOUT$", "w", stderr);
+	FILE* ConsoleInput = nullptr;
+	FILE* ConsoleError = nullptr;
+	freopen_s(&ConsoleInput, "CONIN$", "r", stdin);
+	freopen_s(&ConsoleError, "CONOUT$", "w", stderr);
 	std::cerr.clear(); // clear internal error flags on cerr after redirect
 	std::cerr << std::boolalpha << std::hex;
 
@@ -77,20 +78,33 @@ DWORD MainThread(HMODULE Module)
 		CppGenerator::ExecuteSDKCompilationTestScript();
 	}
 
+	auto UnloadDumper = [&]()
+	{
+		if (ConsoleInput)
+		{
+			fclose(ConsoleInput);
+		}
+		if (ConsoleError)
+		{
+			fclose(ConsoleError);
+		}
+		FreeConsole();
+
+		FreeLibraryAndExitThread(Module, 0);
+	};
+
+	if (Settings::Config::bUnloadAfterDump)
+	{
+		UnloadDumper();
+	}
+
 	std::cerr << "\n\nPress F6 to unload\n\n\n";
 
 	while (true)
 	{
 		if (GetAsyncKeyState(VK_F6) & 1)
 		{
-			fclose(stderr);
-			if (Dummy) 
-			{
-				fclose(Dummy);
-			}
-			FreeConsole();
-
-			FreeLibraryAndExitThread(Module, 0);
+			UnloadDumper();
 		}
 
 		Sleep(100);

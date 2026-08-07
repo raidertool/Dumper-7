@@ -202,6 +202,8 @@ void Settings::Config::Load()
 			std::cerr << "Press " << KeyName << " to begin dump." << "\n";
 		}
 	}
+
+	bUnloadAfterDump = GetPrivateProfileIntA("Settings", "UnloadAfterDump", 0, ConfigPath) != 0;
 }
 
 void Settings::Config::DelayDumperStart()

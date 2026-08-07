@@ -89,6 +89,8 @@ You can optionally dynamically change settings through a `Dumper-7.ini` file, in
   - Generate output at the specified path instead of `C:/Dumper-7`.
   - Paths are relative to game executable unless you use an absolute path including drive letter.
   - Use `..` to access parent directories. Do not include quotes.
+- **UnloadAfterDump:**
+  - If non-zero, unload the DLL automatically after generation instead of waiting for F6.
 
 
 ### Example:
