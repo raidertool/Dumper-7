@@ -15,7 +15,7 @@ namespace
 	struct ReflectionState
 	{
 		uint32 TypeCount = 0;
-		uint64 Fingerprint = 0xCBF29CE484222325;
+		uint64 Fingerprint = 0;
 	};
 
 	void HashValue(uint64& Hash, uint64 Value)
@@ -27,6 +27,32 @@ namespace
 		}
 	}
 
+	uint64 FinalizeHash(uint64 Hash)
+	{
+		Hash ^= Hash >> 33;
+		Hash *= 0xFF51AFD7ED558CCD;
+		Hash ^= Hash >> 33;
+		Hash *= 0xC4CEB9FE1A85EC53;
+		return Hash ^ (Hash >> 33);
+	}
+
+	uint64 GetTypeFingerprint(const UEObject Object, uint64 TypeFlags)
+	{
+		uint64 Hash = 0xCBF29CE484222325;
+		HashValue(Hash, TypeFlags);
+
+		uint32 Depth = 0;
+		for (UEObject Current = Object; Current && Depth < 64; Current = Current.GetOuter())
+		{
+			const FName Name = Current.GetFName();
+			HashValue(Hash, static_cast<uint32>(Name.GetCompIdx()));
+			HashValue(Hash, Name.GetNumber());
+			++Depth;
+		}
+		HashValue(Hash, Depth);
+		return FinalizeHash(Hash);
+	}
+
 	ReflectionState GetReflectionState()
 	{
 		constexpr uint64 ReflectionMask =
@@ -35,6 +61,8 @@ namespace
 			| static_cast<uint64>(EClassCastFlags::Function);
 
 		ReflectionState State;
+		uint64 FingerprintXor = 0;
+		uint64 FingerprintSum = 0;
 		for (const UEObject Object : ObjectArray())
 		{
 			if (!Object)
@@ -48,15 +76,17 @@ namespace
 			if (TypeFlags == 0)
 				continue;
 
-			const FName Name = Object.GetFName();
-			const UEObject Outer = Object.GetOuter();
-			HashValue(State.Fingerprint, static_cast<uint32>(Object.GetIndex()));
-			HashValue(State.Fingerprint, static_cast<uint32>(Name.GetCompIdx()));
-			HashValue(State.Fingerprint, Name.GetNumber());
-			HashValue(State.Fingerprint, Outer ? static_cast<uint32>(Outer.GetIndex()) : UINT32_MAX);
-			HashValue(State.Fingerprint, TypeFlags);
+			const uint64 TypeFingerprint = GetTypeFingerprint(Object, TypeFlags);
+			FingerprintXor ^= TypeFingerprint;
+			FingerprintSum += TypeFingerprint;
 			++State.TypeCount;
 		}
+
+		uint64 Combined = 0xCBF29CE484222325;
+		HashValue(Combined, State.TypeCount);
+		HashValue(Combined, FingerprintXor);
+		HashValue(Combined, FingerprintSum);
+		State.Fingerprint = FinalizeHash(Combined);
 		return State;
 	}
 
