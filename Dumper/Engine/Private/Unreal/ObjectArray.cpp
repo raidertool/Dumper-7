@@ -505,7 +505,7 @@ void* ObjectArray::GetByIndexSafe(int32 Index) noexcept
 			SizeOfFUObjectItem,
 			FUObjectItemInitialOffset,
 			NumElementsPerChunk);
-		return Object && !Platform::IsBadReadPtr(Object) ? Object : nullptr;
+		return Object;
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
