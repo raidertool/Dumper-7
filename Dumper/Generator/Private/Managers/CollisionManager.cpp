@@ -130,7 +130,7 @@ uint64 CollisionManager::AddNameToContainer(NameContainer& StructNames, UEStruct
 	* that conflicts with any earlier entry in the same container. If so, MemberNameCollisionCount is incremented
 	* until the output name is unique. This resolves cases where two properties with different raw names
 	* (e.g. "Params" and "Params_0") both produce the same final output name (e.g. both → "Params_0") after
-	* the reserved-name collision suffix is applied.
+	* the reserved-name collision suffix is applied. Function parameters use ParamNameCollisionCount instead.
 	*/
 	auto ResolveEffectiveNameConflicts = [&](NameContainer* TargetContainer) -> void
 	{
@@ -139,7 +139,9 @@ uint64 CollisionManager::AddNameToContainer(NameContainer& StructNames, UEStruct
 
 		NameInfo& NewInfo = TargetContainer->back();
 
-		if (static_cast<ECollisionType>(NewInfo.OwnType) != ECollisionType::MemberName)
+		const ECollisionType CollisionType = static_cast<ECollisionType>(NewInfo.OwnType);
+		if (CollisionType != ECollisionType::MemberName
+			&& CollisionType != ECollisionType::ParameterName)
 			return;
 
 		const size_t NewInfoIndex = TargetContainer->size() - 1;
@@ -155,10 +157,18 @@ uint64 CollisionManager::AddNameToContainer(NameContainer& StructNames, UEStruct
 			{
 				if (StringifyName(Struct, (*TargetContainer)[i]) == NewOutputName)
 				{
-					if (NewInfo.MemberNameCollisionCount >= ((1u << PerCountBitCount) - 1))
-						return;
-
-					NewInfo.MemberNameCollisionCount++;
+					if (CollisionType == ECollisionType::ParameterName)
+					{
+						if (NewInfo.ParamNameCollisionCount >= ((1u << PerCountBitCount) - 1))
+							return;
+						NewInfo.ParamNameCollisionCount++;
+					}
+					else
+					{
+						if (NewInfo.MemberNameCollisionCount >= ((1u << PerCountBitCount) - 1))
+							return;
+						NewInfo.MemberNameCollisionCount++;
+					}
 					bFoundConflict = true;
 					break;
 				}
@@ -188,17 +198,24 @@ uint64 CollisionManager::AddNameToContainer(NameContainer& StructNames, UEStruct
 		{
 			// Create new empty NameInfo
 			FuncParamNames->emplace_back(NameIdx, CurrentType);
+			ResolveEffectiveNameConflicts(FuncParamNames);
 			return FuncParamNames->size() - 1;
 		}
 
 		if (AddCollidingName(*FuncParamNames, FuncParamNames, NameIdx, CurrentType, false))
+		{
+			ResolveEffectiveNameConflicts(FuncParamNames);
 			return FuncParamNames->size() - 1;
+		}
 
 		if (bIsStruct)
 		{
 			/* Serach ReservedNames last, just in case there was a property which also collided with a reserved name already */
 			if (AddCollidingName(ReservedNames, FuncParamNames, NameIdx, CurrentType, false))
+			{
+				ResolveEffectiveNameConflicts(FuncParamNames);
 				return FuncParamNames->size() - 1;
+			}
 		}
 	}
 
@@ -244,6 +261,7 @@ uint64 CollisionManager::AddNameToContainer(NameContainer& StructNames, UEStruct
 	if (bIsParameter && FuncParamNames)
 	{
 		FuncParamNames->emplace_back(NameIdx, CurrentType);
+		ResolveEffectiveNameConflicts(FuncParamNames);
 		return FuncParamNames->size() - 1;
 	}
 	else
