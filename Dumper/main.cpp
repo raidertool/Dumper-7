@@ -43,6 +43,7 @@ DWORD MainThreadImpl(HMODULE Module)
 	DumperSafety::SetStage("load-config");
 	Settings::Config::Load();
 	DumperSafety::SetLogDirectory(Settings::Generator::SDKGenerationPath);
+	DumperSafety::SetStage("config-loaded");
 	const bool HasConsole = !Settings::Config::bContinuous;
 	if (HasConsole)
 	{
@@ -54,12 +55,16 @@ DWORD MainThreadImpl(HMODULE Module)
 		std::cerr << "Initializing [Dumper-7]\n";
 	}
 
+	DumperSafety::SetStage("startup-delay");
 	Settings::Config::DelayDumperStart();
+	DumperSafety::SetStage("startup-delay-complete");
 
 	DumperSafety::SetStage("initialize-engine");
 	Generator::InitEngineCore();
+	DumperSafety::SetStage("initialize-engine-complete");
 	DumperSafety::SetStage("initialize-game-identity");
 	InitializeGameIdentity();
+	DumperSafety::SetStage("initialize-game-identity-complete");
 
 	std::cerr << "GameName: " << Settings::Generator::GameName << "\n";
 	std::cerr << "GameVersion: " << Settings::Generator::GameVersion << "\n\n";

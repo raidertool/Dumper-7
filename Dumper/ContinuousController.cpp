@@ -100,6 +100,7 @@ namespace
 
 void ContinuousController::Run()
 {
+	DumperSafety::SetStage("controller-create-pipe");
 	const std::string PipePath = "\\\\.\\pipe\\" + Settings::Config::ControlPipeName;
 	HANDLE Pipe = CreateNamedPipeA(
 		PipePath.c_str(),
@@ -114,6 +115,7 @@ void ContinuousController::Run()
 		throw std::runtime_error("Could not create the continuous-control pipe");
 	DumperSafety::SetControlPipe(Pipe);
 
+	DumperSafety::SetStage("controller-wait-client");
 	const bool Connected = ConnectNamedPipe(Pipe, nullptr)
 		|| GetLastError() == ERROR_PIPE_CONNECTED;
 	if (!Connected)
@@ -122,6 +124,7 @@ void ContinuousController::Run()
 		throw std::runtime_error("Could not connect the continuous-control pipe");
 	}
 
+	DumperSafety::SetStage("controller-ready");
 	WritePipeLine(Pipe, "READY");
 	std::string Command;
 	while (ReadPipeLine(Pipe, Command))

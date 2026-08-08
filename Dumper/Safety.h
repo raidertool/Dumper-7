@@ -11,15 +11,50 @@ namespace DumperSafety
 	inline thread_local const char* CurrentStage = "startup";
 	inline HANDLE ControlPipe = INVALID_HANDLE_VALUE;
 	inline char CrashLogPath[MAX_PATH] = "C:\\Dumper-7\\dumper-crash.log";
+	inline char StageLogPath[MAX_PATH] = "C:\\Dumper-7\\dumper-stage.log";
+	inline bool HasLogDirectory = false;
+
+	inline void WriteStage() noexcept
+	{
+		if (!HasLogDirectory)
+			return;
+
+		char Message[256] = {};
+		sprintf_s(
+			Message,
+			"pid=%lu\r\nstage=%s\r\n",
+			GetCurrentProcessId(),
+			CurrentStage);
+		const HANDLE File = CreateFileA(
+			StageLogPath,
+			GENERIC_WRITE,
+			FILE_SHARE_READ | FILE_SHARE_WRITE,
+			nullptr,
+			CREATE_ALWAYS,
+			FILE_ATTRIBUTE_NORMAL,
+			nullptr);
+		if (File == INVALID_HANDLE_VALUE)
+			return;
+
+		DWORD Written = 0;
+		WriteFile(File, Message, static_cast<DWORD>(strlen(Message)), &Written, nullptr);
+		CloseHandle(File);
+	}
 
 	inline void SetStage(const char* Stage) noexcept
 	{
+		if (strcmp(CurrentStage, Stage) == 0)
+			return;
 		CurrentStage = Stage;
+		WriteStage();
 	}
 
 	inline void SetLogDirectory(const std::string& Directory) noexcept
 	{
 		sprintf_s(CrashLogPath, "%s\\dumper-crash.log", Directory.c_str());
+		sprintf_s(StageLogPath, "%s\\dumper-stage.log", Directory.c_str());
+		HasLogDirectory = true;
+		WriteStage();
 	}
 
 	inline void SetControlPipe(HANDLE Pipe) noexcept
