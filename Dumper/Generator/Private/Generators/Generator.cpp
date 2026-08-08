@@ -162,7 +162,10 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	}
 	catch (const std::exception& Error)
 	{
-		throw std::runtime_error(std::string("IDAMappingGenerator failed: ") + Error.what());
+		std::cerr << "IDAMappingGenerator failed; continuing without IDMAP: "
+			<< Error.what() << "\n";
+		std::error_code RemoveError;
+		fs::remove_all(IDAMappingGenerator::MainFolder, RemoveError);
 	}
 	try
 	{
