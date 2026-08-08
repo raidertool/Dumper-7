@@ -137,13 +137,15 @@ void ContinuousController::Run()
 			continue;
 		}
 
-		if (Command.starts_with("DUMP\t"))
+		const bool bFullSnapshot = Command.starts_with("DUMP_FULL\t");
+		if (bFullSnapshot || Command.starts_with("DUMP\t"))
 		{
 			try
 			{
 				DumperSafety::SetStage("snapshot");
-				Settings::Generator::SDKGenerationPath = Command.substr(5);
-				Generator::GenerateSnapshot(false, false);
+				const size_t PathOffset = bFullSnapshot ? 10 : 5;
+				Settings::Generator::SDKGenerationPath = Command.substr(PathOffset);
+				Generator::GenerateSnapshot(bFullSnapshot, false);
 				if (!WritePipeLine(Pipe, "DONE"))
 					break;
 			}
