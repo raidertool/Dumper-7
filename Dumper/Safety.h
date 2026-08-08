@@ -75,14 +75,39 @@ namespace DumperSafety
 		const void* Address = Exception && Exception->ExceptionRecord
 			? Exception->ExceptionRecord->ExceptionAddress
 			: nullptr;
+		const bool IsAccessViolation = Exception && Exception->ExceptionRecord
+			&& Code == EXCEPTION_ACCESS_VIOLATION
+			&& Exception->ExceptionRecord->NumberParameters >= 2;
+		const ULONG_PTR AccessKind = IsAccessViolation
+			? Exception->ExceptionRecord->ExceptionInformation[0]
+			: 0;
+		const void* AccessAddress = IsAccessViolation
+			? reinterpret_cast<const void*>(Exception->ExceptionRecord->ExceptionInformation[1])
+			: nullptr;
+		const char* AccessName = AccessKind == 0 ? "read" : AccessKind == 1 ? "write" : "execute";
 
-		char Message[512] = {};
-		sprintf_s(
-			Message,
-			"ERROR Dumper-7 aborted stage '%s' after exception 0x%08lX at %p.\r\n",
-			CurrentStage,
-			Code,
-			Address);
+		char Message[768] = {};
+		if (IsAccessViolation)
+		{
+			sprintf_s(
+				Message,
+				"ERROR Dumper-7 aborted stage '%s' after exception 0x%08lX at %p "
+				"(%s access at %p).\r\n",
+				CurrentStage,
+				Code,
+				Address,
+				AccessName,
+				AccessAddress);
+		}
+		else
+		{
+			sprintf_s(
+				Message,
+				"ERROR Dumper-7 aborted stage '%s' after exception 0x%08lX at %p.\r\n",
+				CurrentStage,
+				Code,
+				Address);
+		}
 		OutputDebugStringA(Message);
 
 		const HANDLE File = CreateFileA(

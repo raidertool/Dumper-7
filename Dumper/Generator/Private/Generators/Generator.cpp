@@ -51,19 +51,27 @@ void Generator::InitEngineCore()
 	/* Multiversus [Unsupported, weird GObjects-struct] */
 	//InitObjectArrayDecryption([](void* ObjPtr) -> uint8* { return reinterpret_cast<uint8*>(uint64(ObjPtr) ^ 0x1B5DEAFD6B4068C); });
 
+	DumperSafety::SetStage("initialize-engine-object-array");
 	ObjectArray::Init();
 
+	DumperSafety::SetStage("initialize-engine-name");
 	CALL_PLATFORM_SPECIFIC_FUNCTION(FName::Init);
 
+	DumperSafety::SetStage("initialize-engine-offsets");
 	Off::Init();
+	DumperSafety::SetStage("initialize-engine-property-sizes");
 	PropertySizes::Init();
 
+	DumperSafety::SetStage("initialize-engine-process-event");
 	CALL_PLATFORM_SPECIFIC_FUNCTION(Off::InSDK::ProcessEvent::InitPE); // Must be at this position, relies on offsets initialized in Off::Init()
 
+	DumperSafety::SetStage("initialize-engine-world");
 	Off::InSDK::World::InitGWorld(); // Must be at this position, relies on offsets initialized in Off::Init()
 
+	DumperSafety::SetStage("initialize-engine-text");
 	Off::InSDK::Text::InitTextOffsets(); // Must be at this position, relies on offsets initialized in Off::InitPE()
 
+	DumperSafety::SetStage("initialize-engine-settings");
 	InitSettings();
 }
 
