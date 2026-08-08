@@ -481,10 +481,36 @@ int32 ObjectArray::MaxChunks()
 	return *reinterpret_cast<int32*>(GObjects + Off::FUObjectArray::GetMaxChunksOffset());
 }
 
+ObjectArray::ObjectArray()
+	: IterationLimit(max(Num(), 0))
+{
+}
+
 template<typename UEType>
 static UEType ObjectArray::GetByIndex(int32 Index)
 {
-	return UEType(ByIndex(GObjects + Off::FUObjectArray::GetObjectsOffset(), Index, SizeOfFUObjectItem, FUObjectItemInitialOffset, NumElementsPerChunk));
+	return UEType(GetByIndexSafe(Index));
+}
+
+void* ObjectArray::GetByIndexSafe(int32 Index) noexcept
+{
+	if (Index < 0 || !ByIndex || !GObjects)
+		return nullptr;
+
+	__try
+	{
+		void* Object = ByIndex(
+			GObjects + Off::FUObjectArray::GetObjectsOffset(),
+			Index,
+			SizeOfFUObjectItem,
+			FUObjectItemInitialOffset,
+			NumElementsPerChunk);
+		return Object && !Platform::IsBadReadPtr(Object) ? Object : nullptr;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		return nullptr;
+	}
 }
 
 template<typename UEType>
@@ -555,17 +581,24 @@ UEClass ObjectArray::FindClassFast(const std::string& Name)
 
 ObjectArray::ObjectsIterator ObjectArray::begin()
 {
-	return ObjectsIterator();
+	return ObjectsIterator(0, IterationLimit);
 }
 ObjectArray::ObjectsIterator ObjectArray::end()
 {
-	return ObjectsIterator(Num());
+	return ObjectsIterator(IterationLimit, IterationLimit);
 }
 
 
-ObjectArray::ObjectsIterator::ObjectsIterator(int32 StartIndex)
-	: CurrentIndex(StartIndex), CurrentObject(ObjectArray::GetByIndex(StartIndex))
+ObjectArray::ObjectsIterator::ObjectsIterator(int32 StartIndex, int32 EndIndex)
+	: CurrentIndex(StartIndex), EndIndex(EndIndex),
+	  CurrentObject(StartIndex < EndIndex ? ObjectArray::GetByIndex(StartIndex) : UEObject())
 {
+	while (!CurrentObject && CurrentIndex < EndIndex)
+	{
+		++CurrentIndex;
+		if (CurrentIndex < EndIndex)
+			CurrentObject = ObjectArray::GetByIndex(CurrentIndex);
+	}
 }
 
 UEObject ObjectArray::ObjectsIterator::operator*() const
@@ -575,15 +608,16 @@ UEObject ObjectArray::ObjectsIterator::operator*() const
 
 ObjectArray::ObjectsIterator& ObjectArray::ObjectsIterator::operator++()
 {
-	CurrentObject = ObjectArray::GetByIndex(++CurrentIndex);
+	if (CurrentIndex < EndIndex)
+		++CurrentIndex;
+	CurrentObject = CurrentIndex < EndIndex ? ObjectArray::GetByIndex(CurrentIndex) : UEObject();
 
-	while (!CurrentObject && CurrentIndex < (ObjectArray::Num() - 1))
+	while (!CurrentObject && CurrentIndex < EndIndex)
 	{
-		CurrentObject = ObjectArray::GetByIndex(++CurrentIndex);
+		++CurrentIndex;
+		if (CurrentIndex < EndIndex)
+			CurrentObject = ObjectArray::GetByIndex(CurrentIndex);
 	}
-
-	if (!CurrentObject && CurrentIndex == (ObjectArray::Num() - 1)) [[unlikely]]
-		CurrentIndex++;
 
 	return *this;
 }

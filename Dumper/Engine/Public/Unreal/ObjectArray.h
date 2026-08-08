@@ -29,14 +29,19 @@ public:
 	static inline std::string DecryptionLambdaStr;
 
 private:
+	int32 IterationLimit = 0;
+
 	static inline void*(*ByIndex)(void* ObjectsArray, int32 Index, uint32 FUObjectItemSize, uint32 FUObjectItemOffset, uint32 PerChunk) = nullptr;
 
 	static inline uint8_t* (*DecryptPtr)(void* ObjPtr) = [](void* Ptr) -> uint8* { return static_cast<uint8*>(Ptr); };
 
 private:
 	static void InitializeFUObjectItem(uint8_t* FirstItemPtr);
+	static void* GetByIndexSafe(int32 Index) noexcept;
 
 public:
+	ObjectArray();
+
 	static void InitDecryption(uint8_t* (*DecryptionFunction)(void* ObjPtr), const char* DecryptionLambdaAsStr);
 
 	static void Init(bool bScanAllMemory = false, const char* const ModuleName = Settings::General::DefaultModuleName);
@@ -74,9 +79,10 @@ public:
 	{
 		UEObject CurrentObject;
 		int32 CurrentIndex;
+		int32 EndIndex;
 
 	public:
-		ObjectsIterator(int32 StartIndex = 0);
+		ObjectsIterator(int32 StartIndex, int32 EndIndex);
 
 		UEObject operator*() const;
 		ObjectsIterator& operator++();

@@ -3,6 +3,7 @@
 #include "Unreal/UnrealObjects.h"
 #include "Unreal/ObjectArray.h"
 #include "OffsetFinder/Offsets.h"
+#include "Platform.h"
 
 
 void* UEFFieldClass::GetAddress()
@@ -434,8 +435,11 @@ std::string UEObject::GetPathName() const
 
 UEObject::operator bool() const
 {
-	// if an object is 0x10000F000 it passes the nullptr check
-	return Object != nullptr && reinterpret_cast<void*>(Object + Off::UObject::Class) != nullptr;
+	if (!Object || Platform::IsBadReadPtr(Object) || Platform::IsBadReadPtr(Object + Off::UObject::Class))
+		return false;
+
+	void* Class = *reinterpret_cast<void**>(Object + Off::UObject::Class);
+	return Class && !Platform::IsBadReadPtr(Class);
 }
 
 UEObject::operator uint8* ()

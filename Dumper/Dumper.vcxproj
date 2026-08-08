@@ -354,6 +354,7 @@
     <ClInclude Include="Generator\Public\Managers\PackageManager.h" />
     <ClInclude Include="Generator\Public\PredefinedMembers.h" />
     <ClInclude Include="Settings.h" />
+    <ClInclude Include="Safety.h" />
     <ClInclude Include="Generator\Public\Managers\StructManager.h" />
     <ClInclude Include="Engine\Public\Unreal\NameArray.h" />
     <ClInclude Include="Utils\Encoding\UnicodeNames.h" />

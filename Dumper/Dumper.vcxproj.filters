@@ -85,6 +85,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ContinuousController.h" />
+    <ClInclude Include="Safety.h" />
     <Filter Include="Engine">
       <UniqueIdentifier>{0b2e1251-929c-4f5b-bd97-9f43d1e3d1a5}</UniqueIdentifier>
     </Filter>

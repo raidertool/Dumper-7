@@ -8,6 +8,7 @@
 #include "Generators/Generator.h"
 #include "OffsetFinder/Offsets.h"
 #include "Platform.h"
+#include "Safety.h"
 #include "Unreal/ObjectArray.h"
 
 namespace
@@ -36,56 +37,15 @@ namespace
 		return Hash ^ (Hash >> 33);
 	}
 
-	uint64 GetTypeFingerprint(const UEObject Object, uint64 TypeFlags)
-	{
-		uint64 Hash = 0xCBF29CE484222325;
-		HashValue(Hash, TypeFlags);
-
-		uint32 Depth = 0;
-		for (UEObject Current = Object; Current && Depth < 64; Current = Current.GetOuter())
-		{
-			const FName Name = Current.GetFName();
-			HashValue(Hash, static_cast<uint32>(Name.GetCompIdx()));
-			HashValue(Hash, Name.GetNumber());
-			++Depth;
-		}
-		HashValue(Hash, Depth);
-		return FinalizeHash(Hash);
-	}
-
 	ReflectionState GetReflectionState()
 	{
-		constexpr uint64 ReflectionMask =
-			static_cast<uint64>(EClassCastFlags::Enum)
-			| static_cast<uint64>(EClassCastFlags::Struct)
-			| static_cast<uint64>(EClassCastFlags::Function);
-
 		ReflectionState State;
-		uint64 FingerprintXor = 0;
-		uint64 FingerprintSum = 0;
-		for (const UEObject Object : ObjectArray())
-		{
-			if (!Object)
-				continue;
-
-			const UEClass Class = Object.GetClass();
-			if (!Class)
-				continue;
-
-			const uint64 TypeFlags = static_cast<uint64>(Class.GetCastFlags()) & ReflectionMask;
-			if (TypeFlags == 0)
-				continue;
-
-			const uint64 TypeFingerprint = GetTypeFingerprint(Object, TypeFlags);
-			FingerprintXor ^= TypeFingerprint;
-			FingerprintSum += TypeFingerprint;
-			++State.TypeCount;
-		}
+		const uint64 ObjectCount = static_cast<uint64>(max(ObjectArray::Num(), 0));
+		const uint64 ChunkCount = static_cast<uint64>(max(ObjectArray::NumChunks(), 0));
 
 		uint64 Combined = 0xCBF29CE484222325;
-		HashValue(Combined, State.TypeCount);
-		HashValue(Combined, FingerprintXor);
-		HashValue(Combined, FingerprintSum);
+		HashValue(Combined, ObjectCount);
+		HashValue(Combined, ChunkCount);
 		State.Fingerprint = FinalizeHash(Combined);
 		return State;
 	}
@@ -152,6 +112,7 @@ void ContinuousController::Run()
 		nullptr);
 	if (Pipe == INVALID_HANDLE_VALUE)
 		throw std::runtime_error("Could not create the continuous-control pipe");
+	DumperSafety::SetControlPipe(Pipe);
 
 	const bool Connected = ConnectNamedPipe(Pipe, nullptr)
 		|| GetLastError() == ERROR_PIPE_CONNECTED;
@@ -167,6 +128,7 @@ void ContinuousController::Run()
 	{
 		if (Command == "STATUS")
 		{
+			DumperSafety::SetStage("status");
 			if (!WritePipeLine(Pipe, GetRuntimeStatus()))
 				break;
 			continue;
@@ -176,6 +138,7 @@ void ContinuousController::Run()
 		{
 			try
 			{
+				DumperSafety::SetStage("snapshot");
 				Settings::Generator::SDKGenerationPath = Command.substr(5);
 				Generator::GenerateSnapshot(false, false);
 				if (!WritePipeLine(Pipe, "DONE"))
@@ -201,5 +164,6 @@ void ContinuousController::Run()
 
 	FlushFileBuffers(Pipe);
 	DisconnectNamedPipe(Pipe);
+	DumperSafety::ClearControlPipe();
 	CloseHandle(Pipe);
 }

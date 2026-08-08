@@ -4,6 +4,7 @@
 
 #include "ContinuousController.h"
 #include "Generators/Generator.h"
+#include "Safety.h"
 
 namespace
 {
@@ -35,11 +36,13 @@ enum class EFortToastType : uint8
     EFortToastType_MAX                       = 4,
 };
 
-DWORD MainThread(HMODULE Module)
+DWORD MainThreadImpl(HMODULE Module)
 {
 	FILE* ConsoleInput = nullptr;
 	FILE* ConsoleError = nullptr;
+	DumperSafety::SetStage("load-config");
 	Settings::Config::Load();
+	DumperSafety::SetLogDirectory(Settings::Generator::SDKGenerationPath);
 	const bool HasConsole = !Settings::Config::bContinuous;
 	if (HasConsole)
 	{
@@ -53,7 +56,9 @@ DWORD MainThread(HMODULE Module)
 
 	Settings::Config::DelayDumperStart();
 
+	DumperSafety::SetStage("initialize-engine");
 	Generator::InitEngineCore();
+	DumperSafety::SetStage("initialize-game-identity");
 	InitializeGameIdentity();
 
 	std::cerr << "GameName: " << Settings::Generator::GameName << "\n";
@@ -81,6 +86,7 @@ DWORD MainThread(HMODULE Module)
 
 		try
 		{
+			DumperSafety::SetStage("continuous-controller");
 			ContinuousController::Run();
 		}
 		catch (const std::exception& Error)
@@ -107,6 +113,18 @@ DWORD MainThread(HMODULE Module)
 	}
 
 	return 0;
+}
+
+DWORD MainThread(HMODULE Module)
+{
+	__try
+	{
+		return MainThreadImpl(Module);
+	}
+	__except (DumperSafety::HandleException(GetExceptionInformation()))
+	{
+		return 1;
+	}
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)

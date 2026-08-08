@@ -13,6 +13,7 @@
 #include "Utils.h"
 
 #include "Platform.h"
+#include "Safety.h"
 #include "Json/json.hpp"
 #include "Dumpspace/DSGen.h"
 
@@ -121,7 +122,9 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	std::cerr << "Started Generation [Dumper-7]!\n";
 	auto DumpStartTime = std::chrono::high_resolution_clock::now();
 
+	DumperSafety::SetStage("snapshot-reset");
 	ResetGenerationState(bWriteObjectDumps);
+	DumperSafety::SetStage("snapshot-index-reflection");
 	InitInternal();
 
 	if (bGenerateCppSdk)
@@ -137,6 +140,7 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	}
 	try
 	{
+		DumperSafety::SetStage("snapshot-usmap");
 		Generate<MappingGenerator>();
 	}
 	catch (const std::exception& Error)
@@ -145,6 +149,7 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	}
 	try
 	{
+		DumperSafety::SetStage("snapshot-idmap");
 		Generate<IDAMappingGenerator>();
 	}
 	catch (const std::exception& Error)
@@ -153,12 +158,14 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	}
 	try
 	{
+		DumperSafety::SetStage("snapshot-dumpspace");
 		Generate<DumpspaceGenerator>();
 	}
 	catch (const std::exception& Error)
 	{
 		throw std::runtime_error(std::string("DumpspaceGenerator failed: ") + Error.what());
 	}
+	DumperSafety::SetStage("snapshot-complete");
 
 	auto DumpFinishTime = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> DumpTime = DumpFinishTime - DumpStartTime;
