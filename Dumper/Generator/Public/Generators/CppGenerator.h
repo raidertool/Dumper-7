@@ -44,6 +44,7 @@ public:
         EFunctionFlags FuncFlags = EFunctionFlags::None;
 
         std::string RetType;
+        std::string RetName;
         std::string FuncNameWithParams;
 
         std::vector<ParamInfo> UnrealFuncParams; // for unreal-functions only

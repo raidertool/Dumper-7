@@ -274,6 +274,7 @@ CppGenerator::FunctionInfo CppGenerator::GenerateFunctionInfo(const FunctionWrap
 			PInfo.Name = Param.GetName();
 			PInfo.Type = Type;
 			PInfo.bIsRetParam = true;
+			RetFuncInfo.RetName = PInfo.Name;
 			RetFuncInfo.UnrealFuncParams.push_back(PInfo);
 			continue;
 		}
@@ -422,9 +423,9 @@ std::string CppGenerator::GenerateSingleFunction(const FunctionWrapper& Func, co
 
 	Func->FunctionFlags = Flgs;)";
 
-	constexpr const char* ReturnValueString = R"(
+	const std::string ReturnValueString = std::format(R"(
 
-	return Parms.ReturnValue;)";
+	return Parms.{};)", FuncInfo.RetName);
 
 	UEFunction UnrealFunc = Func.GetUnrealFunction();
 

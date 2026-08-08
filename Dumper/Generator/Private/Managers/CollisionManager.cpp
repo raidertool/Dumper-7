@@ -206,7 +206,10 @@ uint64 CollisionManager::AddNameToContainer(NameContainer& StructNames, UEStruct
 
 	/* Check all member-names from this struct and see if we're colliding with one of them */
 	if (AddCollidingName(StructNames, TargetNameContainer, NameIdx, CurrentType, false))
+	{
+		ResolveEffectiveNameConflicts(TargetNameContainer);
 		return TargetNameContainer->size() - 1;
+	}
 
 	/* This possibly duplicated name doesn't occcure in the NameList of the struct itself, so check all supers to see if we're colliding with a super's name. */
 	for (UEStruct Current = Struct.GetSuper(); Current; Current = Current.GetSuper())
@@ -214,7 +217,10 @@ uint64 CollisionManager::AddNameToContainer(NameContainer& StructNames, UEStruct
 		NameContainer& SuperNames = NameInfos[Current.GetIndex()];
 
 		if (AddCollidingName(SuperNames, TargetNameContainer, NameIdx, CurrentType, true))
+		{
+			ResolveEffectiveNameConflicts(TargetNameContainer);
 			return TargetNameContainer->size() - 1;
+		}
 	}
 
 	if (!bIsStruct)
