@@ -144,6 +144,14 @@ public:
 		return false;
 	}
 
+	static inline const std::unordered_set<int32>& GetCyclicPackages(int32 StructIndex)
+	{
+		static const std::unordered_set<int32> Empty;
+
+		auto It = CyclicStructsAndPackages.find(StructIndex);
+		return It != CyclicStructsAndPackages.end() ? It->second : Empty;
+	}
+
 	/* 
 	* Utility function for PackageManager::PostInit to handle the initialization of our list of cyclic structs and their respective packages
 	* 

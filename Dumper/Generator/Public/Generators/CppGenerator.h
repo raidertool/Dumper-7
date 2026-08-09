@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <ostream>
 
 #include "Managers/DependencyManager.h"
 #include "Managers/StructManager.h"
@@ -21,6 +22,7 @@ class CppGenerator
 private:
     friend class CppGeneratorTest;
     friend class Generator;
+    friend class ReflectionIRGenerator;
 
 public:
     /* Used by IDAMappingGenerator */
@@ -100,13 +102,14 @@ private:
     static std::string GenerateMembers(const StructWrapper& Struct, const MemberManager& Members, int32 SuperSize, int32 SuperLastMemberEnd, int32 SuperAlign, int32 PackageIndex = -1);
     static FunctionInfo GenerateFunctionInfo(const FunctionWrapper& Func, const bool bAddExplicitThis = false);
 
+public:
     // return: In-header function declarations and inline functions
-    static std::string GenerateSingleFunction(const FunctionWrapper& Func, const std::string& StructName, StreamType& FunctionFile, StreamType& ParamFile, StreamType& AssertionFile);
-    static std::string GenerateFunctions(const StructWrapper& Struct, const MemberManager& Members, const std::string& StructName, StreamType& FunctionFile, StreamType& ParamFile, StreamType& AssertionFile);
+    static std::string GenerateSingleFunction(const FunctionWrapper& Func, const std::string& StructName, std::ostream& FunctionFile, std::ostream& ParamFile, std::ostream& AssertionFile);
+    static std::string GenerateFunctions(const StructWrapper& Struct, const MemberManager& Members, const std::string& StructName, std::ostream& FunctionFile, std::ostream& ParamFile, std::ostream& AssertionFile);
 
-    static void GenerateStruct(const StructWrapper& Struct, StreamType& StructFile, StreamType& FunctionFile, StreamType& ParamFile, StreamType& AssertionFile, int32 PackageIndex = -1, const std::string& StructNameOverride = std::string());
+    static void GenerateStruct(const StructWrapper& Struct, std::ostream& StructFile, std::ostream& FunctionFile, std::ostream& ParamFile, std::ostream& AssertionFile, int32 PackageIndex = -1, const std::string& StructNameOverride = std::string());
 
-    static void GenerateEnum(const EnumWrapper& Enum, StreamType& StructFile);
+    static void GenerateEnum(const EnumWrapper& Enum, std::ostream& StructFile);
 
 private: /* utility functions */
     static std::string GetMemberTypeString(const PropertyWrapper& MemberWrapper, int32 PackageIndex = -1, bool bAllowForConstPtrMembers = false /* const USomeClass* Member; */);

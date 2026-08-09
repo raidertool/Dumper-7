@@ -318,7 +318,7 @@ CppGenerator::FunctionInfo CppGenerator::GenerateFunctionInfo(const FunctionWrap
 	return RetFuncInfo;
 }
 
-std::string CppGenerator::GenerateSingleFunction(const FunctionWrapper& Func, const std::string& StructName, StreamType& FunctionFile, StreamType& ParamFile, StreamType& AssertionFile)
+std::string CppGenerator::GenerateSingleFunction(const FunctionWrapper& Func, const std::string& StructName, std::ostream& FunctionFile, std::ostream& ParamFile, std::ostream& AssertionFile)
 {
 	namespace CppSettings = Settings::CppGenerator;
 
@@ -489,7 +489,7 @@ std::string CppGenerator::GenerateSingleFunction(const FunctionWrapper& Func, co
 	return InHeaderFunctionText;
 }
 
-std::string CppGenerator::GenerateFunctions(const StructWrapper& Struct, const MemberManager& Members, const std::string& StructName, StreamType& FunctionFile, StreamType& ParamFile, StreamType& AssertionFile)
+std::string CppGenerator::GenerateFunctions(const StructWrapper& Struct, const MemberManager& Members, const std::string& StructName, std::ostream& FunctionFile, std::ostream& ParamFile, std::ostream& AssertionFile)
 {
 	namespace CppSettings = Settings::CppGenerator;
 
@@ -668,7 +668,7 @@ R"({{
 	return InHeaderFunctionText;
 }
 
-void CppGenerator::GenerateStruct(const StructWrapper& Struct, StreamType& StructFile, StreamType& FunctionFile, StreamType& ParamFile, StreamType& AssertionFile, int32 PackageIndex, const std::string& StructNameOverride)
+void CppGenerator::GenerateStruct(const StructWrapper& Struct, std::ostream& StructFile, std::ostream& FunctionFile, std::ostream& ParamFile, std::ostream& AssertionFile, int32 PackageIndex, const std::string& StructNameOverride)
 {
 	if (!Struct.IsValid())
 		return;
@@ -755,7 +755,7 @@ void CppGenerator::GenerateStruct(const StructWrapper& Struct, StreamType& Struc
 
 	if (bHasFunctions)
 	{
-		StreamType& FuncParamsAssertionFile = Settings::Debug::bGenerateAssertionFile ? AssertionFile : ParamFile;
+		std::ostream& FuncParamsAssertionFile = Settings::Debug::bGenerateAssertionFile ? AssertionFile : ParamFile;
 
 		StructFile << GenerateFunctions(Struct, Members, UniqueName, FunctionFile, ParamFile, FuncParamsAssertionFile);
 	}
@@ -813,7 +813,7 @@ void CppGenerator::GenerateStruct(const StructWrapper& Struct, StreamType& Struc
 	}
 }
 
-void CppGenerator::GenerateEnum(const EnumWrapper& Enum, StreamType& StructFile)
+void CppGenerator::GenerateEnum(const EnumWrapper& Enum, std::ostream& StructFile)
 {
 	if (!Enum.IsValid())
 		return;

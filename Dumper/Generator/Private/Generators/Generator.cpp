@@ -4,6 +4,7 @@
 #include "Generators/MappingGenerator.h"
 #include "Generators/IDAMappingGenerator.h"
 #include "Generators/DumpspaceGenerator.h"
+#include "Generators/ReflectionIRGenerator.h"
 #include "Managers/StructManager.h"
 #include "Managers/EnumManager.h"
 #include "Managers/MemberManager.h"
@@ -123,6 +124,11 @@ void Generator::ResetGenerationState(bool bWriteObjectDumps)
 	DumpspaceGenerator::PredefinedMembers.clear();
 	DumpspaceGenerator::MainFolder.clear();
 	DumpspaceGenerator::Subfolder.clear();
+
+	ReflectionIRGenerator::PredefinedMembers.clear();
+	ReflectionIRGenerator::MainFolder.clear();
+	ReflectionIRGenerator::Subfolder.clear();
+	ReflectionIRGenerator::CapturedDocument.clear();
 	DSGen::reset();
 }
 
@@ -186,6 +192,18 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	std::ofstream IdentityStream(DumperFolder / "ReflectionIdentities.json", std::ios::binary);
 	if (!IdentityStream || !(IdentityStream << IdentityManifest.dump(2) << '\n'))
 		throw std::runtime_error("Could not write ReflectionIdentities.json");
+	try
+	{
+		// Keep the existing generators at their proven timing. Reflection IR is a
+		// large owned export and must not extend their live-object race window.
+		DumperSafety::SetStage("snapshot-capture-reflection-ir");
+		ReflectionIRGenerator::Capture();
+		Generate<ReflectionIRGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("ReflectionIRGenerator failed: ") + Error.what());
+	}
 	DumperSafety::SetStage("snapshot-complete");
 
 	auto DumpFinishTime = std::chrono::high_resolution_clock::now();
