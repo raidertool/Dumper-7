@@ -99,9 +99,8 @@ DWORD MainThreadImpl(HMODULE Module)
 			std::cerr << "Continuous controller failed: " << Error.what() << "\n";
 		}
 
-		// The controller has detached, but the DLL intentionally remains resident.
-		// Unloading after repeated generation needs separate lifecycle validation.
-		return 0;
+		DumperSafety::SetStage("continuous-unload");
+		UnloadDumper();
 	}
 
 	Generator::GenerateSnapshot();
@@ -128,7 +127,7 @@ DWORD MainThread(HMODULE Module)
 	}
 	__except (DumperSafety::HandleException(GetExceptionInformation()))
 	{
-		return 1;
+		FreeLibraryAndExitThread(Module, 1);
 	}
 }
 
