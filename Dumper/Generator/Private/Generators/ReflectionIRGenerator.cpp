@@ -18,7 +18,7 @@
 
 namespace
 {
-    constexpr int32 ReflectionIRFormatVersion = 1;
+    constexpr int32 ReflectionIRFormatVersion = 2;
 
     void SortByIdentity(nlohmann::json& Records)
     {
@@ -34,7 +34,7 @@ namespace
             return nullptr;
 
         return {
-            { "identity", Object.GetFullName() },
+            { "identity", Object.GetPathName() },
             { "path_name", Object.GetPathName() },
             { "raw_name", Object.GetName() },
             { "valid_name", Object.GetValidName() },
@@ -184,12 +184,12 @@ namespace
             if (!Parameter.IsUnrealProperty())
                 continue;
 
-            Parameters.push_back(PropertyRecord(Parameter, Function.GetFullName(), ParameterOrdinal++));
+            Parameters.push_back(PropertyRecord(Parameter, Function.GetPathName(), ParameterOrdinal++));
         }
 
         return {
             { "ordinal", Ordinal },
-            { "identity", Function.GetFullName() },
+            { "identity", Function.GetPathName() },
             { "path_name", Function.GetPathName() },
             { "raw_name", Function.GetName() },
             { "valid_name", Function.GetValidName() },
@@ -221,7 +221,7 @@ namespace
             if (!Property.IsUnrealProperty())
                 continue;
 
-            Properties.push_back(PropertyRecord(Property, Struct.GetFullName(), PropertyOrdinal++));
+            Properties.push_back(PropertyRecord(Property, Struct.GetPathName(), PropertyOrdinal++));
         }
         int32 FunctionOrdinal = 0;
         for (const FunctionWrapper& Function : Members.IterateFunctions())
@@ -231,6 +231,9 @@ namespace
 
             Functions.push_back(FunctionRecord(Function, FunctionOrdinal++));
         }
+        SortByIdentity(Functions);
+        for (int32 Ordinal = 0; Ordinal < static_cast<int32>(Functions.size()); ++Ordinal)
+            Functions[Ordinal]["ordinal"] = Ordinal;
 
         nlohmann::json CyclicPackages = nlohmann::json::array();
         for (const int32 PackageIndex : StructManager::GetCyclicPackages(Struct.GetIndex()))
@@ -240,12 +243,13 @@ namespace
         SortByIdentity(CyclicPackages);
 
         nlohmann::json Record = {
-            { "identity", Struct.GetFullName() },
+            { "identity", Struct.GetPathName() },
             { "path_name", Struct.GetPathName() },
             { "raw_name", Struct.GetName() },
             { "valid_name", Struct.GetValidName() },
             { "cpp_name", Struct.GetCppName() },
             { "generated_name", GeneratedName },
+            { "cpp_qualified_name", CppGenerator::GetStructPrefixedName(WrappedStruct) },
             { "generated_name_is_unique", bIsUniqueName },
             { "full_name", Struct.GetFullName() },
             { "package", ObjectReference(Struct.GetOutermost()) },
@@ -343,12 +347,13 @@ namespace
         }
 
         nlohmann::json Record = {
-            { "identity", Enum.GetFullName() },
+            { "identity", Enum.GetPathName() },
             { "path_name", Enum.GetPathName() },
             { "raw_name", Enum.GetName() },
             { "valid_name", Enum.GetValidName() },
             { "cpp_name", Enum.GetCppName() },
             { "generated_name", GeneratedName },
+            { "cpp_qualified_name", CppGenerator::GetEnumPrefixedName(WrappedEnum) },
             { "generated_name_is_unique", bIsUniqueName },
             { "full_name", Enum.GetFullName() },
             { "package", ObjectReference(Enum.GetOutermost()) },
@@ -407,7 +412,7 @@ void ReflectionIRGenerator::Capture()
         const auto [PackageName, PackageCollisionCount] = Package.GetNameCollisionPair();
         const DependencyInfo& Dependencies = Package.GetPackageDependencies();
         Packages.push_back({
-            { "identity", PackageObject.GetFullName() },
+            { "identity", PackageObject.GetPathName() },
             { "path_name", PackageObject.GetPathName() },
             { "raw_name", PackageObject.GetName() },
             { "valid_name", PackageObject.GetValidName() },

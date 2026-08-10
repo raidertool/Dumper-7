@@ -111,6 +111,9 @@ public:
 
     static void GenerateEnum(const EnumWrapper& Enum, std::ostream& StructFile);
 
+    static std::string GetStructPrefixedName(const StructWrapper& Struct);
+    static std::string GetEnumPrefixedName(const EnumWrapper& Enum);
+
 private: /* utility functions */
     static std::string GetMemberTypeString(const PropertyWrapper& MemberWrapper, int32 PackageIndex = -1, bool bAllowForConstPtrMembers = false /* const USomeClass* Member; */);
     static std::string GetMemberTypeString(UEProperty Member, int32 PackageIndex = -1, bool bAllowForConstPtrMembers = false);
@@ -118,8 +121,6 @@ private: /* utility functions */
 
     static std::string GetFunctionSignature(StructWrapper Func);
 
-    static std::string GetStructPrefixedName(const StructWrapper& Struct);
-    static std::string GetEnumPrefixedName(const EnumWrapper& Enum);
     static std::string GetEnumUnderlayingType(const EnumWrapper& Enm);
 	static std::string GetEnumForcedSizeType(const EnumWrapper& Enm, const uint8_t PropertySize);
 
