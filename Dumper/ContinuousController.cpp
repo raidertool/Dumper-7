@@ -1,15 +1,24 @@
 #include "ContinuousController.h"
 
 #include <Windows.h>
+#include <bcrypt.h>
+#include <algorithm>
+#include <cctype>
 #include <format>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "Generators/Generator.h"
 #include "OffsetFinder/Offsets.h"
 #include "Platform.h"
+#include "ReflectionFilter.h"
 #include "Safety.h"
 #include "Unreal/ObjectArray.h"
+
+#pragma comment(lib, "bcrypt.lib")
 
 namespace
 {
@@ -96,6 +105,76 @@ namespace
 			nullptr)
 			&& Written == Message.size();
 	}
+
+	bool ReadPipeBytes(HANDLE Pipe, std::string& Data, const size_t Length)
+	{
+		Data.resize(Length);
+		size_t Offset = 0;
+		while (Offset < Length)
+		{
+			const DWORD Remaining = static_cast<DWORD>(std::min<size_t>(Length - Offset, MAXDWORD));
+			DWORD Read = 0;
+			if (!ReadFile(Pipe, Data.data() + Offset, Remaining, &Read, nullptr) || Read == 0)
+				return false;
+			Offset += Read;
+		}
+		return true;
+	}
+
+	std::string Sha256(const std::string& Data)
+	{
+		BCRYPT_ALG_HANDLE Algorithm = nullptr;
+		BCRYPT_HASH_HANDLE Hash = nullptr;
+		DWORD ObjectSize = 0;
+		DWORD HashSize = 0;
+		DWORD ResultSize = 0;
+
+		auto Check = [](const NTSTATUS Status, const char* Operation)
+		{
+			if (Status < 0)
+				throw std::runtime_error(std::string("SHA-256 ") + Operation + " failed");
+		};
+
+		Check(BCryptOpenAlgorithmProvider(&Algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0), "initialization");
+		try
+		{
+			Check(BCryptGetProperty(Algorithm, BCRYPT_OBJECT_LENGTH,
+				reinterpret_cast<PUCHAR>(&ObjectSize), sizeof(ObjectSize), &ResultSize, 0), "object-size query");
+			Check(BCryptGetProperty(Algorithm, BCRYPT_HASH_LENGTH,
+				reinterpret_cast<PUCHAR>(&HashSize), sizeof(HashSize), &ResultSize, 0), "hash-size query");
+
+			std::vector<UCHAR> HashObject(ObjectSize);
+			std::vector<UCHAR> Digest(HashSize);
+			Check(BCryptCreateHash(Algorithm, &Hash, HashObject.data(), ObjectSize, nullptr, 0, 0), "creation");
+			Check(BCryptHashData(Hash, reinterpret_cast<PUCHAR>(const_cast<char*>(Data.data())),
+				static_cast<ULONG>(Data.size()), 0), "update");
+			Check(BCryptFinishHash(Hash, Digest.data(), HashSize, 0), "finalization");
+
+			std::ostringstream Encoded;
+			Encoded << std::hex << std::setfill('0');
+			for (const UCHAR Byte : Digest)
+				Encoded << std::setw(2) << static_cast<unsigned>(Byte);
+
+			BCryptDestroyHash(Hash);
+			BCryptCloseAlgorithmProvider(Algorithm, 0);
+			return Encoded.str();
+		}
+		catch (...)
+		{
+			if (Hash)
+				BCryptDestroyHash(Hash);
+			BCryptCloseAlgorithmProvider(Algorithm, 0);
+			throw;
+		}
+	}
+
+	bool IsSha256(const std::string& Value)
+	{
+		return Value.size() == 64 && std::all_of(Value.begin(), Value.end(), [](const unsigned char Character)
+		{
+			return std::isxdigit(Character) != 0;
+		});
+	}
 }
 
 void ContinuousController::Run()
@@ -129,6 +208,56 @@ void ContinuousController::Run()
 	std::string Command;
 	while (ReadPipeLine(Pipe, Command))
 	{
+		if (Command.starts_with("SET_FILTER "))
+		{
+			bool bCloseConnection = false;
+			try
+			{
+				constexpr size_t MaximumPayloadSize = 16 * 1024 * 1024;
+				std::istringstream Header(Command);
+				std::string Operation;
+				size_t PayloadSize = 0;
+				std::string ExpectedSha256;
+				std::string Extra;
+				if (!(Header >> Operation >> PayloadSize >> ExpectedSha256)
+					|| Operation != "SET_FILTER" || Header >> Extra)
+					throw std::invalid_argument("invalid SET_FILTER header");
+				if (PayloadSize > MaximumPayloadSize)
+				{
+					bCloseConnection = true;
+					throw std::invalid_argument("SET_FILTER payload exceeds 16 MiB");
+				}
+				if (!IsSha256(ExpectedSha256))
+				{
+					bCloseConnection = true;
+					throw std::invalid_argument("SET_FILTER requires a SHA-256 digest");
+				}
+
+				std::string Payload;
+				if (!ReadPipeBytes(Pipe, Payload, PayloadSize))
+					break;
+
+				std::transform(ExpectedSha256.begin(), ExpectedSha256.end(), ExpectedSha256.begin(), [](const unsigned char Character)
+				{
+					return static_cast<char>(std::tolower(Character));
+				});
+				if (Sha256(Payload) != ExpectedSha256)
+					throw std::invalid_argument("SET_FILTER payload SHA-256 mismatch");
+
+				ReflectionFilter::Configure(Payload, ExpectedSha256);
+				if (!WritePipeLine(Pipe, ReflectionFilter::GetReportLine()))
+					break;
+			}
+			catch (const std::exception& Error)
+			{
+				if (!WritePipeLine(Pipe, std::string("ERROR ") + Error.what()))
+					break;
+				if (bCloseConnection)
+					break;
+			}
+			continue;
+		}
+
 		if (Command == "STATUS")
 		{
 			DumperSafety::SetStage("status");

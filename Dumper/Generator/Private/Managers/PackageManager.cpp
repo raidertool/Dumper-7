@@ -1,6 +1,7 @@
 #include "Unreal/ObjectArray.h"
 
 #include "Managers/PackageManager.h"
+#include "ReflectionFilter.h"
 
 /* Required for marking cyclic-headers in the StructManager */
 #include "Managers/StructManager.h"
@@ -124,18 +125,23 @@ namespace PackageManagerUtils
 {
 	void GetPropertyDependency(UEProperty Prop, std::unordered_set<int32>& Store)
 	{
+		if (ReflectionFilter::ShouldExcludeProperty(Prop))
+			return;
+
 		if (Prop.IsA(EClassCastFlags::StructProperty))
 		{
-			Store.insert(Prop.Cast<UEStructProperty>().GetUnderlayingStruct().GetIndex());
+			const UEStruct Struct = Prop.Cast<UEStructProperty>().GetUnderlayingStruct();
+			if (Struct && !ReflectionFilter::ShouldExcludeStruct(Struct))
+				Store.insert(Struct.GetIndex());
 		}
 		else if (Prop.IsA(EClassCastFlags::EnumProperty))
 		{
-			if (UEObject Enum = Prop.Cast<UEEnumProperty>().GetEnum())
+			if (UEObject Enum = Prop.Cast<UEEnumProperty>().GetEnum(); Enum && !ReflectionFilter::ShouldExclude(Enum))
 				Store.insert(Enum.GetIndex());
 		}
 		else if (Prop.IsA(EClassCastFlags::ByteProperty))
 		{
-			if (UEObject Enum = Prop.Cast<UEByteProperty>().GetEnum())
+			if (UEObject Enum = Prop.Cast<UEByteProperty>().GetEnum(); Enum && !ReflectionFilter::ShouldExclude(Enum))
 				Store.insert(Enum.GetIndex());
 		}
 		else if (Prop.IsA(EClassCastFlags::ArrayProperty))
@@ -160,7 +166,7 @@ namespace PackageManagerUtils
 			const bool bIsNormalDeleage = !Prop.IsA(EClassCastFlags::MulticastInlineDelegateProperty);
 			UEFunction SignatureFunction = bIsNormalDeleage ? Prop.Cast<UEDelegateProperty>().GetSignatureFunction() : Prop.Cast<UEMulticastInlineDelegateProperty>().GetSignatureFunction();
 
-			if (!SignatureFunction)
+			if (!SignatureFunction || ReflectionFilter::ShouldExcludeFunction(SignatureFunction))
 				return;
 
 			for (UEProperty DelegateParam : SignatureFunction.GetProperties())
@@ -190,7 +196,11 @@ namespace PackageManagerUtils
 	{
 		for (int32 Dependency : Dependencies)
 		{
-			const int32 PackageIdx = ObjectArray::GetByIndex(Dependency).GetPackageIndex();
+			const UEObject DependencyObject = ObjectArray::GetByIndex(Dependency);
+			if (ReflectionFilter::ShouldExclude(DependencyObject))
+				continue;
+
+			const int32 PackageIdx = DependencyObject.GetPackageIndex();
 
 
 			if (bAllowToIncludeOwnPackage || PackageIdx != StructPackageIdx)
@@ -208,7 +218,8 @@ namespace PackageManagerUtils
 		{
 			UEObject DependencyObject = ObjectArray::GetByIndex(Dependency);
 
-			if (!DependencyObject.IsA(EClassCastFlags::Enum))
+			if (ReflectionFilter::ShouldExclude(DependencyObject)
+				|| !DependencyObject.IsA(EClassCastFlags::Enum))
 				continue;
 
 			const int32 PackageIdx = DependencyObject.GetPackageIndex();
@@ -230,7 +241,9 @@ namespace PackageManagerUtils
 		{
 			UEObject Obj = ObjectArray::GetByIndex(DependencyStructIdx);
 
-			if (Obj.GetPackageIndex() == StructPackageIndex && !Obj.IsA(EClassCastFlags::Enum))
+			if (!ReflectionFilter::ShouldExclude(Obj)
+				&& Obj.GetPackageIndex() == StructPackageIndex
+				&& !Obj.IsA(EClassCastFlags::Enum))
 				TempSet.insert(DependencyStructIdx);
 		}
 
@@ -244,7 +257,8 @@ void PackageManager::InitDependencies()
 
 	for (auto Obj : ObjectArray())
 	{
-		if (Obj.HasAnyFlags(EObjectFlags::ClassDefaultObject))
+		if (Obj.HasAnyFlags(EObjectFlags::ClassDefaultObject)
+			|| ReflectionFilter::ShouldExclude(Obj))
 			continue;
 
 		int32 CurrentPackageIdx = Obj.GetPackageIndex();
@@ -304,6 +318,9 @@ void PackageManager::InitDependencies()
 			/* Add class-functions to package */
 			for (UEFunction Func : ObjAsStruct.GetFunctions())
 			{
+				if (ReflectionFilter::ShouldExcludeFunction(Func))
+					continue;
+
 				Info.Functions.push_back(Func.GetIndex());
 
 				std::unordered_set<int32> ParamDependencies = PackageManagerUtils::GetDependencies(Func, Func.GetIndex());
@@ -354,7 +371,8 @@ void PackageManager::HelperMarkStructDependenciesOfPackage(UEStruct Struct, int3
 
 	for (UEProperty Child : Struct.GetProperties())
 	{
-		if (!Child.IsA(EClassCastFlags::StructProperty))
+		if (ReflectionFilter::ShouldExcludeProperty(Child)
+			|| !Child.IsA(EClassCastFlags::StructProperty))
 			continue;
 
 		const UEStruct UnderlayingStruct = Child.Cast<UEStructProperty>().GetUnderlayingStruct();
@@ -379,7 +397,8 @@ int32 PackageManager::HelperCountStructDependenciesOfPackage(UEStruct Struct, in
 
 	for (UEProperty Child : Struct.GetProperties())
 	{
-		if (!Child.IsA(EClassCastFlags::StructProperty))
+		if (ReflectionFilter::ShouldExcludeProperty(Child)
+			|| !Child.IsA(EClassCastFlags::StructProperty))
 			continue;
 
 		const int32 UnderlayingStructPackageIdx = Child.Cast<UEStructProperty>().GetUnderlayingStruct().GetPackageIndex();
@@ -395,6 +414,9 @@ void PackageManager::HelperAddEnumsFromPacakageToFwdDeclarations(UEStruct Struct
 {
 	for (UEProperty Child : Struct.GetProperties())
 	{
+		if (ReflectionFilter::ShouldExcludeProperty(Child))
+			continue;
+
 		const bool bIsEnumPrperty = Child.IsA(EClassCastFlags::EnumProperty);
 		const bool bIsBytePrperty = Child.IsA(EClassCastFlags::ByteProperty);
 

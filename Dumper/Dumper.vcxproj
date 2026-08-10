@@ -315,6 +315,7 @@
     <ClCompile Include="Generator\Private\Managers\EnumManager.cpp" />
     <ClCompile Include="Generator\Private\Wrappers\EnumWrapper.cpp" />
     <ClCompile Include="Generator\Private\Generators\Generator.cpp" />
+    <ClCompile Include="Generator\Private\ReflectionFilter.cpp" />
     <ClCompile Include="Generator\Private\HashStringTable.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Generator\Private\Generators\MappingGenerator.cpp" />
@@ -343,6 +344,7 @@
     <ClInclude Include="Generator\Public\Wrappers\EnumWrapper.h" />
     <ClInclude Include="Utils\Json\json.hpp" />
     <ClInclude Include="Generator\Public\Generators\Generator.h" />
+    <ClInclude Include="Generator\Public\ReflectionFilter.h" />
     <ClInclude Include="Generator\Public\HashStringTable.h" />
     <ClInclude Include="Generator\Public\Generators\MappingGenerator.h" />
     <ClInclude Include="Generator\Public\Wrappers\MemberWrappers.h" />

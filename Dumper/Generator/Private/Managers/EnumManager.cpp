@@ -1,4 +1,5 @@
 #include "Managers/EnumManager.h"
+#include "ReflectionFilter.h"
 
 namespace EnumInitHelper
 {
@@ -84,7 +85,8 @@ void EnumManager::InitInternal()
 {
 	for (auto Obj : ObjectArray())
 	{
-		if (Obj.HasAnyFlags(EObjectFlags::ClassDefaultObject))
+		if (Obj.HasAnyFlags(EObjectFlags::ClassDefaultObject)
+			|| ReflectionFilter::ShouldExclude(Obj))
 			continue;
 
 		if (!Settings::Internal::bHasUnderlayingTypeInUEnum && Obj.IsA(EClassCastFlags::Struct))
@@ -93,6 +95,9 @@ void EnumManager::InitInternal()
 
 			for (UEProperty Property : ObjAsStruct.GetProperties())
 			{
+				if (ReflectionFilter::ShouldExcludeProperty(Property))
+					continue;
+
 				if (!Property.IsA(EClassCastFlags::EnumProperty) && !Property.IsA(EClassCastFlags::ByteProperty))
 					continue;
 

@@ -33,6 +33,9 @@
     <ClCompile Include="Generator\Private\Generators\Generator.cpp">
       <Filter>Generator\Private\Generators</Filter>
     </ClCompile>
+    <ClCompile Include="Generator\Private\ReflectionFilter.cpp">
+      <Filter>Generator\Private</Filter>
+    </ClCompile>
     <ClCompile Include="Generator\Private\HashStringTable.cpp">
       <Filter>Generator\Private</Filter>
     </ClCompile>
@@ -195,6 +198,9 @@
     </ClInclude>
     <ClInclude Include="Generator\Public\Generators\Generator.h">
       <Filter>Generator\Public\Generators</Filter>
+    </ClInclude>
+    <ClInclude Include="Generator\Public\ReflectionFilter.h">
+      <Filter>Generator\Public</Filter>
     </ClInclude>
     <ClInclude Include="Settings.h">
       <Filter>Generator</Filter>

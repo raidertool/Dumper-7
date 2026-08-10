@@ -1,4 +1,5 @@
 #include "Managers/CollisionManager.h"
+#include "ReflectionFilter.h"
 
 NameInfo::NameInfo(HashStringTableIndex NameIdx, ECollisionType CurrentType)
 	: Name(NameIdx), CollisionData(0x0)
@@ -316,14 +317,23 @@ void CollisionManager::AddStructToNameContainer(UEStruct Struct, bool bIsStruct,
 	};
 
 	for (UEProperty Prop : Struct.GetProperties())
-		AddToContainerAndTranslationMap(Prop, ECollisionType::MemberName, bIsStruct);
+	{
+		if (!ReflectionFilter::ShouldExcludeProperty(Prop))
+			AddToContainerAndTranslationMap(Prop, ECollisionType::MemberName, bIsStruct);
+	}
 
 	for (UEFunction Func : Struct.GetFunctions())
 	{
+		if (ReflectionFilter::ShouldExcludeFunction(Func))
+			continue;
+
 		AddToContainerAndTranslationMap(Func, ECollisionType::FunctionName, bIsStruct);
 
 		for (UEProperty Prop : Func.GetProperties())
-			AddToContainerAndTranslationMap(Prop, ECollisionType::ParameterName, bIsStruct, Func);
+		{
+			if (!ReflectionFilter::ShouldExcludeProperty(Prop))
+				AddToContainerAndTranslationMap(Prop, ECollisionType::ParameterName, bIsStruct, Func);
+		}
 	}
 };
 

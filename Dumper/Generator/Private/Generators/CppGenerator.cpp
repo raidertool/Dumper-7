@@ -6,6 +6,7 @@
 #include "Wrappers/MemberWrappers.h"
 #include "Managers/MemberManager.h"
 #include "SharedPredefinedMembers.h"
+#include "ReflectionFilter.h"
 
 #include "../Settings.h"
 
@@ -1261,11 +1262,15 @@ std::unordered_map<std::string, UEProperty> CppGenerator::GetUnknownProperties()
 
 	for (UEObject Obj : ObjectArray())
 	{
-		if (!Obj.IsA(EClassCastFlags::Struct))
+		if (!Obj.IsA(EClassCastFlags::Struct)
+			|| ReflectionFilter::ShouldExcludeStruct(Obj.Cast<UEStruct>()))
 			continue;
 
 		for (UEProperty Prop : Obj.Cast<UEStruct>().GetProperties())
 		{
+			if (ReflectionFilter::ShouldExcludeProperty(Prop))
+				continue;
+
 			bool bIsUnknownProperty = false;
 			const std::string TypeName = GetMemberTypeStringWithoutConst(Prop, -1, &bIsUnknownProperty);
 

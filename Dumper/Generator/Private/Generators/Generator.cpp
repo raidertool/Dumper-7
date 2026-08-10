@@ -8,6 +8,7 @@
 #include "Managers/EnumManager.h"
 #include "Managers/MemberManager.h"
 #include "Managers/PackageManager.h"
+#include "ReflectionFilter.h"
 
 #include "HashStringTable.h"
 #include "Utils.h"
@@ -131,6 +132,7 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	auto DumpStartTime = std::chrono::high_resolution_clock::now();
 
 	DumperSafety::SetStage("snapshot-reset");
+	ReflectionFilter::Refresh();
 	ResetGenerationState(bWriteObjectDumps);
 	DumperSafety::SetStage("snapshot-index-reflection");
 	InitInternal();
@@ -281,7 +283,8 @@ void DumpEditorOnlyMetadata(const fs::path& DumperFolder)
 
 	for (UEObject Obj : ObjectArray())
 	{
-		if (!Obj.IsA(EClassCastFlags::Struct))
+		if (!Obj.IsA(EClassCastFlags::Struct)
+			|| ReflectionFilter::ShouldExcludeStruct(Obj.Cast<UEStruct>()))
 			continue;
 
 		UEStruct Struct = Obj.Cast<UEStruct>();
@@ -293,6 +296,9 @@ void DumpEditorOnlyMetadata(const fs::path& DumperFolder)
 		auto& StructMembers = MetadataJson[Struct.GetCppName()];
 		for (UEProperty Prop : ChildProperties)
 		{
+			if (ReflectionFilter::ShouldExcludeProperty(Prop))
+				continue;
+
 			auto& Entries = StructMembers[Prop.GetValidName()];
 
 			for (const auto& [Key, Value] : Prop.Cast<UEFField>().GetMetaData())

@@ -1,6 +1,7 @@
 #include <algorithm>
 
 #include "Managers/MemberManager.h"
+#include "ReflectionFilter.h"
 #include "Wrappers/MemberWrappers.h"
 
 MemberManager::MemberManager(UEStruct Str)
@@ -8,6 +9,15 @@ MemberManager::MemberManager(UEStruct Str)
 	, Functions(Str.GetFunctions())
 	, Members(Str.GetProperties())
 {
+	std::erase_if(Functions, [](const UEFunction Function)
+	{
+		return ReflectionFilter::ShouldExcludeFunction(Function);
+	});
+	std::erase_if(Members, [](const UEProperty Property)
+	{
+		return ReflectionFilter::ShouldExcludeProperty(Property);
+	});
+
 	// sorts functions/members in O(n * log(n)), can be sorted via radix, O(n), but the overhead might not be worth it
 	std::sort(Functions.begin(), Functions.end(), CompareUnrealFunctions);
 	std::sort(Members.begin(), Members.end(), CompareUnrealProperties);

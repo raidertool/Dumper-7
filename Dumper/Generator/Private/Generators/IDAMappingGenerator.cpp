@@ -1,4 +1,5 @@
 #include "Generators/IDAMappingGenerator.h"
+#include "ReflectionFilter.h"
 #include "SharedPredefinedMembers.h"
 
 #include "Managers/PackageManager.h"
@@ -742,6 +743,9 @@ void IDAMappingGenerator::GenerateSingleEnum(const EnumWrapper& Enum, std::strin
 bool IDAMappingGenerator::GenerateVTableName(std::stringstream& VTableData, std::stringstream& NameData, UEObject DefaultObject)
 {
 	const UEClass Class = DefaultObject.GetClass();
+	if (ReflectionFilter::ShouldExcludeStruct(Class))
+		return false;
+
 	const UEClass Super = Class.GetSuper().Cast<UEClass>();
 
 	if (Super && DefaultObject.GetVft() == Super.GetDefaultObject().GetVft())
@@ -989,7 +993,8 @@ void IDAMappingGenerator::Generate()
 			if (GenerateVTableName(VTableData, NameData, Obj))
 				NumVTables++;
 		}
-		else if (Obj.IsA(EClassCastFlags::Class))
+		else if (Obj.IsA(EClassCastFlags::Class)
+			&& !ReflectionFilter::ShouldExcludeStruct(Obj.Cast<UEClass>()))
 		{
 			GenerateClassFunctions(ExecFuncData, NameData, Obj.Cast<UEClass>());
 		}

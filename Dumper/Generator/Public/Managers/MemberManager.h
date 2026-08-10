@@ -7,6 +7,7 @@
 #include "HashStringTable.h"
 #include "CollisionManager.h"
 #include "PredefinedMembers.h"
+#include "ReflectionFilter.h"
 
 
 template<bool bIsDeferredTemplateCreation = true>
@@ -238,7 +239,8 @@ public:
 		/* Initialize member-name collisions  */
 		for (auto Obj : ObjectArray())
 		{
-			if (!Obj.IsA(EClassCastFlags::Struct))
+			if (!Obj.IsA(EClassCastFlags::Struct)
+				|| ReflectionFilter::ShouldExcludeStruct(Obj.Cast<UEStruct>()))
 				continue;
 
 			AddStructToNameContainer(Obj.Cast<UEStruct>());

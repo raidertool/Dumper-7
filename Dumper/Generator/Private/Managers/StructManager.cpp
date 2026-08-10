@@ -1,5 +1,6 @@
 #include "Unreal/ObjectArray.h"
 #include "Managers/StructManager.h"
+#include "ReflectionFilter.h"
 
 StructInfoHandle::StructInfoHandle(const StructInfo& InInfo)
 	: Info(&InInfo)
@@ -67,7 +68,8 @@ void StructManager::InitAlignmentsAndNames()
 	
 	for (auto Obj : ObjectArray())
 	{
-		if (Obj.IsA(EClassCastFlags::Struct))
+		if (Obj.IsA(EClassCastFlags::Struct)
+			&& !ReflectionFilter::ShouldExcludeStruct(Obj.Cast<UEStruct>()))
 			AllStructs.push_back(Obj.Cast<UEStruct>());
 	}
 
