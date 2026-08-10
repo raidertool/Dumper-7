@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "Unreal/UnrealObjects.h"
 
@@ -16,5 +17,6 @@ namespace ReflectionFilter
 	bool ShouldExcludeEnum(UEEnum Enum);
 	bool ShouldExcludeProperty(UEProperty Property);
 
+	const std::vector<std::string>& GetIncludedClassIdentities();
 	std::string GetReportLine();
 }

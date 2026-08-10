@@ -23,6 +23,7 @@ namespace
 
 	std::unordered_set<std::string> ExactIdentities;
 	std::unordered_set<int32> ExcludedObjectIndices;
+	std::vector<std::string> IncludedClassIdentities;
 	std::string ConfigurationSha256;
 	FilterReport Report;
 
@@ -189,10 +190,30 @@ void ReflectionFilter::Configure(const std::string& Payload, const std::string& 
 void ReflectionFilter::Refresh()
 {
 	ExcludedObjectIndices.clear();
+	IncludedClassIdentities.clear();
 	Report = {};
 	Report.Configured = ExactIdentities.size();
+
+	std::unordered_map<std::string, UEObject> ObservedClasses;
+	const auto ObserveClass = [&](const UEObject Object)
+	{
+		if (Object && Object.IsA(EClassCastFlags::Class))
+			ObservedClasses.try_emplace(GetIdentity(Object), Object);
+	};
+	for (const UEObject Object : ObjectArray())
+	{
+		ObserveClass(Object);
+		ObserveClass(Object.GetClass());
+	}
+
 	if (ExactIdentities.empty())
+	{
+		IncludedClassIdentities.reserve(ObservedClasses.size());
+		for (const auto& [Identity, _] : ObservedClasses)
+			IncludedClassIdentities.push_back(Identity);
+		std::ranges::sort(IncludedClassIdentities);
 		return;
+	}
 
 	std::unordered_set<std::string> MatchedIdentities;
 	std::unordered_set<int32> Visiting;
@@ -251,6 +272,13 @@ void ReflectionFilter::Refresh()
 	Report.Unmatched = Report.Configured - Report.Matched;
 	Report.ExcludedObjects = ExcludedObjectIndices.size();
 	Report.ExcludedMembers = ExcludedMembers;
+	IncludedClassIdentities.reserve(ObservedClasses.size());
+	for (const auto& [Identity, Object] : ObservedClasses)
+	{
+		if (!ExcludedObjectIndices.contains(Object.GetIndex()))
+			IncludedClassIdentities.push_back(Identity);
+	}
+	std::ranges::sort(IncludedClassIdentities);
 
 	if (Report.Unmatched != 0)
 	{
@@ -306,6 +334,11 @@ bool ReflectionFilter::ShouldExcludeEnum(const UEEnum Enum)
 bool ReflectionFilter::ShouldExcludeProperty(const UEProperty Property)
 {
 	return ReferencesExcludedObject(Property);
+}
+
+const std::vector<std::string>& ReflectionFilter::GetIncludedClassIdentities()
+{
+	return IncludedClassIdentities;
 }
 
 std::string ReflectionFilter::GetReportLine()

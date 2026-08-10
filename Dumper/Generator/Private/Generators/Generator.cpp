@@ -178,6 +178,14 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	{
 		throw std::runtime_error(std::string("DumpspaceGenerator failed: ") + Error.what());
 	}
+	DumperSafety::SetStage("snapshot-reflection-identities");
+	const nlohmann::json IdentityManifest{
+		{"schema_version", 1},
+		{"classes", ReflectionFilter::GetIncludedClassIdentities()},
+	};
+	std::ofstream IdentityStream(DumperFolder / "ReflectionIdentities.json", std::ios::binary);
+	if (!IdentityStream || !(IdentityStream << IdentityManifest.dump(2) << '\n'))
+		throw std::runtime_error("Could not write ReflectionIdentities.json");
 	DumperSafety::SetStage("snapshot-complete");
 
 	auto DumpFinishTime = std::chrono::high_resolution_clock::now();
