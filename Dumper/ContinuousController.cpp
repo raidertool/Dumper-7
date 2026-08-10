@@ -28,6 +28,13 @@ namespace
 		uint64 Fingerprint = 0;
 	};
 
+	struct RuntimeState
+	{
+		uintptr_t World = 0;
+		int32 ObjectCount = 0;
+		ReflectionState Reflection;
+	};
+
 	void HashValue(uint64& Hash, uint64 Value)
 	{
 		for (int32 Byte = 0; Byte < sizeof(Value); ++Byte)
@@ -46,36 +53,93 @@ namespace
 		return Hash ^ (Hash >> 33);
 	}
 
+	constexpr bool HasAnyCastFlag(EClassCastFlags Value, EClassCastFlags Mask)
+	{
+		using UnderlyingType = std::underlying_type_t<EClassCastFlags>;
+		return (static_cast<UnderlyingType>(Value) & static_cast<UnderlyingType>(Mask)) != 0;
+	}
+
 	ReflectionState GetReflectionState()
 	{
 		ReflectionState State;
-		const uint64 ObjectCount = static_cast<uint64>(max(ObjectArray::Num(), 0));
-		const uint64 ChunkCount = static_cast<uint64>(max(ObjectArray::NumChunks(), 0));
-
 		uint64 Combined = 0xCBF29CE484222325;
-		HashValue(Combined, ObjectCount);
-		HashValue(Combined, ChunkCount);
+		constexpr EClassCastFlags ReflectionTypes = EClassCastFlags::Enum
+			| EClassCastFlags::Struct
+			| EClassCastFlags::Function
+			| EClassCastFlags::Class;
+		static_assert(HasAnyCastFlag(EClassCastFlags::Enum, ReflectionTypes));
+		static_assert(!HasAnyCastFlag(EClassCastFlags::Actor, ReflectionTypes));
+		ObjectArray Objects;
+		for (auto Iterator = Objects.begin(); Iterator != Objects.end(); ++Iterator)
+		{
+			const UEObject Object = *Iterator;
+			const EClassCastFlags CastFlags = Object.GetClass().GetCastFlags();
+			if (!HasAnyCastFlag(CastFlags, ReflectionTypes))
+				continue;
+
+			++State.TypeCount;
+			HashValue(Combined, static_cast<uint64>(Iterator.GetIndex()));
+			HashValue(Combined, reinterpret_cast<uintptr_t>(Object.GetAddress()));
+			HashValue(Combined, static_cast<uint64>(CastFlags));
+		}
+		HashValue(Combined, State.TypeCount);
 		State.Fingerprint = FinalizeHash(Combined);
 		return State;
 	}
 
-	std::string GetRuntimeStatus()
+	RuntimeState GetRuntimeState()
 	{
-		uintptr_t World = 0x0;
+		RuntimeState State;
 		if (Off::InSDK::World::GWorld != 0x0)
 		{
 			auto ImageBase = reinterpret_cast<uint8*>(GetModuleHandle(nullptr));
 			auto WorldPointer = reinterpret_cast<void**>(ImageBase + Off::InSDK::World::GWorld);
-			World = reinterpret_cast<uintptr_t>(*WorldPointer);
+			State.World = reinterpret_cast<uintptr_t>(*WorldPointer);
 		}
+		State.ObjectCount = ObjectArray::Num();
+		State.Reflection = GetReflectionState();
+		return State;
+	}
 
-		const ReflectionState State = GetReflectionState();
+	std::string FormatRuntimeState(const char* Prefix, const RuntimeState& State)
+	{
 		return std::format(
-			"STATUS {:X} {} {} {:016X}",
-			World,
-			ObjectArray::Num(),
-			State.TypeCount,
-			State.Fingerprint);
+			"{} {:X} {} {} {:016X}",
+			Prefix,
+			State.World,
+			State.ObjectCount,
+			State.Reflection.TypeCount,
+			State.Reflection.Fingerprint);
+	}
+
+	std::string GetRuntimeStatus()
+	{
+		return FormatRuntimeState("STATUS", GetRuntimeState());
+	}
+
+	bool IsStableSnapshot(const RuntimeState& Before, const RuntimeState& After)
+	{
+		return Before.World == After.World
+			&& Before.ObjectCount == After.ObjectCount
+			&& Before.Reflection.Fingerprint == After.Reflection.Fingerprint;
+	}
+
+	std::string FormatSnapshotResult(
+		const char* Result,
+		const RuntimeState& Before,
+		const RuntimeState& After)
+	{
+		return std::format(
+			"{} {:X} {} {} {:016X} {:X} {} {} {:016X}",
+			Result,
+			Before.World,
+			Before.ObjectCount,
+			Before.Reflection.TypeCount,
+			Before.Reflection.Fingerprint,
+			After.World,
+			After.ObjectCount,
+			After.Reflection.TypeCount,
+			After.Reflection.Fingerprint);
 	}
 
 	bool ReadPipeLine(HANDLE Pipe, std::string& Line)
@@ -274,8 +338,11 @@ void ContinuousController::Run()
 				DumperSafety::SetStage("snapshot");
 				const size_t PathOffset = bFullSnapshot ? 10 : 5;
 				Settings::Generator::SDKGenerationPath = Command.substr(PathOffset);
+				const RuntimeState Before = GetRuntimeState();
 				Generator::GenerateSnapshot(bFullSnapshot, false);
-				if (!WritePipeLine(Pipe, "DONE"))
+				const RuntimeState After = GetRuntimeState();
+				const char* Result = IsStableSnapshot(Before, After) ? "DONE" : "UNSTABLE";
+				if (!WritePipeLine(Pipe, FormatSnapshotResult(Result, Before, After)))
 					break;
 			}
 			catch (const std::exception& Error)
