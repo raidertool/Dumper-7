@@ -284,16 +284,22 @@ namespace
             Record["class_cast_flags_text"] = Class.StringifyCastFlags();
 
             nlohmann::json Interfaces = nlohmann::json::array();
-            for (const FImplementedInterface& Interface : Class.GetImplementedInterfaces())
+            const TArray<FImplementedInterface> ImplementedInterfaces =
+                Class.GetImplementedInterfaces();
+            if (ImplementedInterfaces.IsValid()
+                && !Platform::IsBadReadPtr(ImplementedInterfaces.GetDataPtr()))
             {
-                if (!Interface.InterfaceClass)
-                    continue;
+                for (const FImplementedInterface& Interface : ImplementedInterfaces)
+                {
+                    if (!Interface.InterfaceClass)
+                        continue;
 
-                Interfaces.push_back({
-                    { "class", ObjectReference(Interface.InterfaceClass) },
-                    { "pointer_offset", Interface.PointerOffset },
-                    { "implemented_by_blueprint", Interface.bImplementedByK2 },
-                });
+                    Interfaces.push_back({
+                        { "class", ObjectReference(Interface.InterfaceClass) },
+                        { "pointer_offset", Interface.PointerOffset },
+                        { "implemented_by_blueprint", Interface.bImplementedByK2 },
+                    });
+                }
             }
             std::sort(Interfaces.begin(), Interfaces.end(), [](const nlohmann::json& Left, const nlohmann::json& Right)
             {
