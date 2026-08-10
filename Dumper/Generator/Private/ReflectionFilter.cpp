@@ -29,7 +29,8 @@ namespace
 	bool IsReflectionObject(const UEObject Object)
 	{
 		return Object && Object.IsA(
-			EClassCastFlags::Struct
+			EClassCastFlags::Class
+			| EClassCastFlags::Struct
 			| EClassCastFlags::Function
 			| EClassCastFlags::Enum);
 	}
@@ -45,17 +46,19 @@ namespace
 
 	bool IsDirectMatch(const UEObject Object)
 	{
-		return IsReflectionObject(Object) && ExactIdentities.contains(GetIdentity(Object));
+		return Object && ExactIdentities.contains(GetIdentity(Object));
 	}
 
 	bool ResolveObjectExclusion(const UEObject Object, std::unordered_set<int32>& Visiting)
 	{
-		if (!IsReflectionObject(Object))
+		if (!Object)
 			return false;
 
 		const int32 Index = Object.GetIndex();
 		if (ExcludedObjectIndices.contains(Index))
 			return true;
+		if (!IsReflectionObject(Object))
+			return false;
 		if (!Visiting.insert(Index).second)
 			return false;
 
@@ -193,14 +196,25 @@ void ReflectionFilter::Refresh()
 
 	std::unordered_set<std::string> MatchedIdentities;
 	std::unordered_set<int32> Visiting;
+	std::unordered_set<int32> VisitedReflectionObjects;
+	const auto VisitReflectionObject = [&](const UEObject Object)
+	{
+		if (!Object || !VisitedReflectionObjects.insert(Object.GetIndex()).second)
+			return;
+		if (IsDirectMatch(Object))
+		{
+			MatchedIdentities.insert(GetIdentity(Object));
+			ExcludedObjectIndices.insert(Object.GetIndex());
+		}
+		if (!IsReflectionObject(Object))
+			return;
+		ResolveObjectExclusion(Object, Visiting);
+	};
 
 	for (const UEObject Object : ObjectArray())
 	{
-		if (!IsReflectionObject(Object))
-			continue;
-		if (IsDirectMatch(Object))
-			MatchedIdentities.insert(GetIdentity(Object));
-		ResolveObjectExclusion(Object, Visiting);
+		VisitReflectionObject(Object);
+		VisitReflectionObject(Object.GetClass());
 	}
 
 	for (const UEObject Object : ObjectArray())
@@ -256,10 +270,12 @@ void ReflectionFilter::Refresh()
 
 bool ReflectionFilter::ShouldExclude(const UEObject Object)
 {
-	if (!IsReflectionObject(Object))
+	if (!Object)
 		return false;
 	if (ExcludedObjectIndices.contains(Object.GetIndex()))
 		return true;
+	if (!IsReflectionObject(Object))
+		return false;
 
 	std::unordered_set<int32> Visiting;
 	return ResolveObjectExclusion(Object, Visiting);
