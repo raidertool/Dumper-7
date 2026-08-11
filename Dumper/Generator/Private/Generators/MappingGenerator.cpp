@@ -18,9 +18,7 @@ namespace
 
 EMappingsTypeFlags MappingGenerator::GetMappingType(UEProperty Property)
 {
-	auto [Class, FieldClass] = Property.GetClass();
-
-	EClassCastFlags Flags = Class ? Class.GetCastFlags() : FieldClass.GetCastFlags();
+	EClassCastFlags Flags = Property.GetCastFlags();
 
 	if (Flags & EClassCastFlags::ByteProperty)
 	{

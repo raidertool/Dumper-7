@@ -973,7 +973,9 @@ std::string UEProperty::GetValidName() const
 
 int32 UEProperty::GetAlignment() const
 {
-	EClassCastFlags TypeFlags = (GetClass().first ? GetClass().first.GetCastFlags() : GetClass().second.GetCastFlags());
+	EClassCastFlags TypeFlags = GetCastFlags();
+	if (TypeFlags == EClassCastFlags::None)
+		return 0x1;
 
 	if (TypeFlags & EClassCastFlags::ByteProperty)
 	{
@@ -1163,7 +1165,7 @@ int32 UEProperty::GetAlignment() const
 
 std::string UEProperty::GetCppType() const
 {
-	EClassCastFlags TypeFlags = (GetClass().first ? GetClass().first.GetCastFlags() : GetClass().second.GetCastFlags());
+	EClassCastFlags TypeFlags = GetCastFlags();
 
 	if (TypeFlags & EClassCastFlags::ByteProperty)
 	{
@@ -1294,13 +1296,25 @@ std::string UEProperty::GetCppType() const
 	}
 	else
 	{
-		return (GetClass().first ? GetClass().first.GetCppName() : GetClass().second.GetCppName()) + "_";;
+		auto [Class, FieldClass] = GetClass();
+		if (Class)
+			return Class.GetCppName() + "_";
+		if (FieldClass)
+			return FieldClass.GetCppName() + "_";
+
+		return "UnknownProperty_";
 	}
 }
 
 std::string UEProperty::GetPropClassName() const
 {
-	return GetClass().first ? GetClass().first.GetName() : GetClass().second.GetName();
+	auto [Class, FieldClass] = GetClass();
+	if (Class)
+		return Class.GetName();
+	if (FieldClass)
+		return FieldClass.GetName();
+
+	return "UnknownProperty";
 }
 
 std::string UEProperty::StringifyFlags() const

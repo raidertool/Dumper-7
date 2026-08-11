@@ -984,8 +984,7 @@ std::string CppGenerator::GetMemberTypeString(UEProperty Member, int32 PackageIn
 std::string CppGenerator::GetMemberTypeStringWithoutConst(UEProperty Member, int32 PackageIndex, bool* bOutIsUnknownProperty)
 {
 	auto [Class, FieldClass] = Member.GetClass();
-
-	EClassCastFlags Flags = Class ? Class.GetCastFlags() : FieldClass.GetCastFlags();
+	EClassCastFlags Flags = Member.GetCastFlags();
 
 	if (Flags & EClassCastFlags::ByteProperty)
 	{
@@ -1196,7 +1195,12 @@ std::string CppGenerator::GetMemberTypeStringWithoutConst(UEProperty Member, int
 			*bOutIsUnknownProperty = true;
 
 		/* When changing this also change 'GetUnknownProperties()' */
-		return (Class ? Class.GetCppName() : FieldClass.GetCppName()) + "_";
+		if (Class)
+			return Class.GetCppName() + "_";
+		if (FieldClass)
+			return FieldClass.GetCppName() + "_";
+
+		return "UnknownProperty_";
 	}
 }
 

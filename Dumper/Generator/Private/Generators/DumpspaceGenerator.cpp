@@ -88,8 +88,7 @@ std::string DumpspaceGenerator::GetMemberTypeStr(UEProperty Property, std::strin
 	UEProperty Member = Property;
 
 	auto [Class, FieldClass] = Member.GetClass();
-
-	EClassCastFlags Flags = Class ? Class.GetCastFlags() : FieldClass.GetCastFlags();
+	EClassCastFlags Flags = Member.GetCastFlags();
 
 	if (Flags & EClassCastFlags::ByteProperty)
 	{
@@ -313,7 +312,12 @@ std::string DumpspaceGenerator::GetMemberTypeStr(UEProperty Property, std::strin
 	else
 	{
 		/* When changing this also change 'GetUnknownProperties()' */
-		return (Class ? Class.GetCppName() : FieldClass.GetCppName()) + "_";
+		if (Class)
+			return Class.GetCppName() + "_";
+		if (FieldClass)
+			return FieldClass.GetCppName() + "_";
+
+		return "UnknownProperty_";
 	}
 }
 

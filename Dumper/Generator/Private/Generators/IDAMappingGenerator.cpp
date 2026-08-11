@@ -285,8 +285,7 @@ std::string IDAMappingGenerator::GetIDACppTypeForProperty(UEProperty Property, b
 {
 	OutIsPtr = false;
 
-	auto [Class, FieldClass] = Property.GetClass();
-	EClassCastFlags Flags = Class ? Class.GetCastFlags() : FieldClass.GetCastFlags();
+	EClassCastFlags Flags = Property.GetCastFlags();
 
 	if (Flags & EClassCastFlags::ByteProperty)
 	{
