@@ -124,6 +124,7 @@ private: /* utility functions */
     static std::string GetEnumUnderlayingType(const EnumWrapper& Enm);
 	static std::string GetEnumForcedSizeType(const EnumWrapper& Enm, const uint8_t PropertySize);
 
+    static std::string GetParamStructName(const FunctionWrapper& Function, const std::string& OwnerName);
     static std::string GetAssertionMacroString(const std::string& PrefixedStructUniqueName);
 
     static std::string GetCycleFixupType(const StructWrapper& Struct, bool bIsForInheritance);

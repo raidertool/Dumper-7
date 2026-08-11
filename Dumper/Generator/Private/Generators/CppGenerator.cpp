@@ -360,7 +360,7 @@ std::string CppGenerator::GenerateSingleFunction(const FunctionWrapper& Func, co
 		return InHeaderFunctionText;
 	}
 
-	std::string ParamStructName = Func.GetParamStructName();
+	std::string ParamStructName = GetParamStructName(Func, StructName);
 
 	// Parameter struct generation for unreal-functions
 	if (!Func.IsPredefined() && Func.GetParamStructSize() > 0x0)
@@ -919,6 +919,15 @@ std::string CppGenerator::GetAssertionMacroString(const std::string& PrefixedStr
 	return Settings::Debug::AssertionMacroPrefix + MacroStructName;
 }
 
+std::string CppGenerator::GetParamStructName(const FunctionWrapper& Function, const std::string& OwnerName)
+{
+	std::string FlatOwnerName = OwnerName;
+	for (size_t Offset = FlatOwnerName.find("::"); Offset != std::string::npos; Offset = FlatOwnerName.find("::", Offset + 2))
+		FlatOwnerName.replace(Offset, 2, "__");
+
+	return FlatOwnerName + "_" + Function.GetName();
+}
+
 std::string CppGenerator::GetCycleFixupType(const StructWrapper& Struct, bool bIsForInheritance)
 {
 	static int32 UObjectSize = 0x0;
@@ -1441,6 +1450,7 @@ void CppGenerator::GenerateDebugAssertions(StreamType& AssertionStream)
 	DependencyManager::OnVisitCallbackType GenerateParamStructAssertionsCallback = [&AssertionStream, GenerateAssertionsForStruct](int32 ClassIndex) -> void
 	{
 		const StructWrapper Class = ObjectArray::GetByIndex<UEClass>(ClassIndex);
+		const std::string ClassName = GetStructPrefixedName(Class);
 
 		const MemberManager Members = Class.GetMembers();
 
@@ -1450,7 +1460,7 @@ void CppGenerator::GenerateDebugAssertions(StreamType& AssertionStream)
 				continue;
 
 			if (!Func.IsPredefined() && Func.GetParamStructSize() > 0x0)
-				GenerateAssertionsForStruct(AssertionStream, Func.AsStruct(), Func.GetParamStructName());
+				GenerateAssertionsForStruct(AssertionStream, Func.AsStruct(), GetParamStructName(Func, ClassName));
 		}
 	};
 
