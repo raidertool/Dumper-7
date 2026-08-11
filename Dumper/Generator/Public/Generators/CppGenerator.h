@@ -82,6 +82,7 @@ private:
 
 public:
     static inline PredefinedMemberLookupMapType PredefinedMembers;
+    static inline bool bGenerateSupportOnly = false;
 
     static inline std::string MainFolderName = "CppSDK";
     static inline std::string SubfolderName = "SDK";
@@ -166,6 +167,7 @@ private:
 
 public:
     static void Generate();
+    static void GenerateSupport();
 
     static void InitPredefinedMembers();
     static void InitPredefinedFunctions();

@@ -108,6 +108,7 @@ void Generator::ResetGenerationState(bool bWriteObjectDumps)
 
 	CppGenerator::PredefinedMembers.clear();
 	CppGenerator::PredefinedStructs.clear();
+	CppGenerator::bGenerateSupportOnly = false;
 	CppGenerator::MainFolder.clear();
 	CppGenerator::Subfolder.clear();
 
@@ -180,55 +181,15 @@ Generator::SnapshotConsistency Generator::GenerateSnapshot(bool bGenerateCppSdk,
 	{
 		try
 		{
+			CppGenerator::bGenerateSupportOnly = true;
 			Generate<CppGenerator>();
+			CppGenerator::bGenerateSupportOnly = false;
 		}
 		catch (const std::exception& Error)
 		{
+			CppGenerator::bGenerateSupportOnly = false;
 			throw std::runtime_error(std::string("CppGenerator failed: ") + Error.what());
 		}
-	}
-	try
-	{
-		DumperSafety::SetStage("snapshot-usmap");
-		Generate<MappingGenerator>();
-	}
-	catch (const std::exception& Error)
-	{
-		throw std::runtime_error(std::string("MappingGenerator failed: ") + Error.what());
-	}
-	try
-	{
-		DumperSafety::SetStage("snapshot-idmap");
-		Generate<IDAMappingGenerator>();
-	}
-	catch (const std::exception& Error)
-	{
-		std::cerr << "IDAMappingGenerator failed; continuing without IDMAP: "
-			<< Error.what() << "\n";
-		std::error_code RemoveError;
-		fs::remove_all(IDAMappingGenerator::MainFolder, RemoveError);
-	}
-	try
-	{
-		DumperSafety::SetStage("snapshot-dumpspace");
-		DumperSafety::ProtectedFailure Failure{};
-		if (!DumperSafety::TryExecute([]
-		{
-			Generate<DumpspaceGenerator>();
-		}, &Failure))
-		{
-			const char* AccessName = Failure.AccessKind == 0
-				? "read"
-				: Failure.AccessKind == 1 ? "write" : "execute";
-			std::ostringstream Message;
-			Message << "access violation at " << Failure.ExceptionAddress
-				<< " (" << AccessName << " access at " << Failure.AccessAddress << ')';
-			throw std::runtime_error(Message.str());
-		}
-	}
-	catch (const std::exception& Error)
-	{
-		throw std::runtime_error(std::string("DumpspaceGenerator failed: ") + Error.what());
 	}
 	DumperSafety::SetStage("snapshot-reflection-identities");
 	const nlohmann::json IdentityManifest{

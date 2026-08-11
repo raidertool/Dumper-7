@@ -1698,6 +1698,12 @@ void CppGenerator::WriteFileEnd(StreamType& File, EFileType Type)
 
 void CppGenerator::Generate()
 {
+	if (bGenerateSupportOnly)
+	{
+		GenerateSupport();
+		return;
+	}
+
 	// Generate SDK.hpp with sorted packages
 	StreamType SdkHpp(MainFolder / "SDK.hpp");
 	GenerateSDKHeader(SdkHpp);
@@ -1861,6 +1867,39 @@ void CppGenerator::Generate()
 		StreamType TestScriptFile(GetSDKTestScriptPath());
 		GenerateSDKTestScript(TestScriptFile);
 	}
+}
+
+void CppGenerator::GenerateSupport()
+{
+	// These files describe the discovered engine ABI and container support. They
+	// do not depend on package iteration; reflected declarations are rendered
+	// later from the owned Reflection IR.
+	StreamType PropertyFixup(MainFolder / "PropertyFixup.hpp");
+	GeneratePropertyFixupFile(PropertyFixup);
+
+	StreamType UnrealContainers(MainFolder / "UnrealContainers.hpp");
+	GenerateUnrealContainers(UnrealContainers);
+
+	StreamType UnicodeLib(MainFolder / "UtfN.hpp");
+	GenerateUnicodeLib(UnicodeLib);
+
+	StreamType DebugAssertions;
+	if constexpr (Settings::Debug::bGenerateAssertionFile)
+	{
+		DebugAssertions.open(MainFolder / "Assertions.inl");
+		WriteFileHead(DebugAssertions, nullptr, EFileType::DebugAssertions,
+			"Debug assertions to verify member-offsets and struct-sizes");
+	}
+
+	StreamType BasicHpp(Subfolder / "Basic.hpp");
+	StreamType BasicCpp(Subfolder / "Basic.cpp");
+	GenerateBasicFiles(
+		BasicHpp,
+		BasicCpp,
+		(Settings::Debug::bGenerateAssertionFile ? DebugAssertions : BasicHpp));
+
+	if constexpr (Settings::Debug::bGenerateAssertionFile)
+		WriteFileEnd(DebugAssertions, EFileType::DebugAssertions);
 }
 
 void CppGenerator::InitPredefinedMembers()
