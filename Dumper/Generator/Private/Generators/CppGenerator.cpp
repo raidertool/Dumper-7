@@ -1865,6 +1865,9 @@ void CppGenerator::Generate()
 
 void CppGenerator::InitPredefinedMembers()
 {
+	PredefinedMembers.clear();
+	PredefinedStructs.clear();
+
 	static auto SortMembers = [](std::vector<PredefinedMember>& Members) -> void
 	{
 		std::sort(Members.begin(), Members.end(), ComparePredefinedMembers);

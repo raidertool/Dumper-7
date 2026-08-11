@@ -117,29 +117,34 @@ namespace
 		return FormatRuntimeState("STATUS", GetRuntimeState());
 	}
 
-	bool IsStableSnapshot(const RuntimeState& Before, const RuntimeState& After)
+	bool IsStableSnapshot(
+		const RuntimeState& Before,
+		const RuntimeState& After,
+		const Generator::SnapshotConsistency& Consistency)
 	{
 		return Before.World == After.World
-			&& Before.ObjectCount == After.ObjectCount
-			&& Before.Reflection.Fingerprint == After.Reflection.Fingerprint;
+			&& Consistency.IsStable();
 	}
 
 	std::string FormatSnapshotResult(
 		const char* Result,
 		const RuntimeState& Before,
-		const RuntimeState& After)
+		const RuntimeState& After,
+		const Generator::SnapshotConsistency& Consistency)
 	{
 		return std::format(
-			"{} {:X} {} {} {:016X} {:X} {} {} {:016X}",
+			"{} {:X} {} {} {:016X} {:016X} {:X} {} {} {:016X} {:016X}",
 			Result,
 			Before.World,
 			Before.ObjectCount,
 			Before.Reflection.TypeCount,
 			Before.Reflection.Fingerprint,
+			Consistency.Before,
 			After.World,
 			After.ObjectCount,
 			After.Reflection.TypeCount,
-			After.Reflection.Fingerprint);
+			After.Reflection.Fingerprint,
+			Consistency.After);
 	}
 
 	bool ReadPipeLine(HANDLE Pipe, std::string& Line)
@@ -339,10 +344,13 @@ void ContinuousController::Run()
 				const size_t PathOffset = bFullSnapshot ? 10 : 5;
 				Settings::Generator::SDKGenerationPath = Command.substr(PathOffset);
 				const RuntimeState Before = GetRuntimeState();
-				Generator::GenerateSnapshot(bFullSnapshot, false);
+				const Generator::SnapshotConsistency Consistency =
+					Generator::GenerateSnapshot(bFullSnapshot, false);
 				const RuntimeState After = GetRuntimeState();
-				const char* Result = IsStableSnapshot(Before, After) ? "DONE" : "UNSTABLE";
-				if (!WritePipeLine(Pipe, FormatSnapshotResult(Result, Before, After)))
+				const char* Result = IsStableSnapshot(Before, After, Consistency)
+					? "DONE"
+					: "UNSTABLE";
+				if (!WritePipeLine(Pipe, FormatSnapshotResult(Result, Before, After, Consistency)))
 					break;
 			}
 			catch (const std::exception& Error)

@@ -129,10 +129,11 @@ void Generator::ResetGenerationState(bool bWriteObjectDumps)
 	ReflectionIRGenerator::MainFolder.clear();
 	ReflectionIRGenerator::Subfolder.clear();
 	ReflectionIRGenerator::CapturedDocument.clear();
+	ReflectionIRGenerator::CapturedFingerprint = 0;
 	DSGen::reset();
 }
 
-void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
+Generator::SnapshotConsistency Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 {
 	std::cerr << "Started Generation [Dumper-7]!\n";
 	auto DumpStartTime = std::chrono::high_resolution_clock::now();
@@ -142,6 +143,26 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	ResetGenerationState(bWriteObjectDumps);
 	DumperSafety::SetStage("snapshot-index-reflection");
 	InitInternal();
+
+	auto CaptureReflection = []() -> uint64
+	{
+		ReflectionIRGenerator::CaptureFailure Failure{};
+		if (!ReflectionIRGenerator::TryCapture(&Failure))
+		{
+			const char* AccessName = Failure.AccessKind == 0
+				? "read"
+				: Failure.AccessKind == 1 ? "write" : "execute";
+			std::ostringstream Message;
+			Message << "access violation while capturing " << Failure.Context
+				<< " at " << Failure.ExceptionAddress
+				<< " (" << AccessName << " access at " << Failure.AccessAddress << ')';
+			throw std::runtime_error(Message.str());
+		}
+		return ReflectionIRGenerator::GetCapturedFingerprint();
+	};
+
+	DumperSafety::SetStage("snapshot-capture-reflection-before");
+	const uint64 ReflectionBefore = CaptureReflection();
 
 	if (bGenerateCppSdk)
 	{
@@ -205,23 +226,11 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	std::ofstream IdentityStream(DumperFolder / "ReflectionIdentities.json", std::ios::binary);
 	if (!IdentityStream || !(IdentityStream << IdentityManifest.dump(2) << '\n'))
 		throw std::runtime_error("Could not write ReflectionIdentities.json");
+	uint64 ReflectionAfter = 0;
 	try
 	{
-		// Keep the existing generators at their proven timing. Reflection IR is a
-		// large owned export and must not extend their live-object race window.
-		DumperSafety::SetStage("snapshot-capture-reflection-ir");
-		ReflectionIRGenerator::CaptureFailure Failure{};
-		if (!ReflectionIRGenerator::TryCapture(&Failure))
-		{
-			const char* AccessName = Failure.AccessKind == 0
-				? "read"
-				: Failure.AccessKind == 1 ? "write" : "execute";
-			std::ostringstream Message;
-			Message << "access violation while capturing " << Failure.Context
-				<< " at " << Failure.ExceptionAddress
-				<< " (" << AccessName << " access at " << Failure.AccessAddress << ')';
-			throw std::runtime_error(Message.str());
-		}
+		DumperSafety::SetStage("snapshot-capture-reflection-after");
+		ReflectionAfter = CaptureReflection();
 		Generate<ReflectionIRGenerator>();
 	}
 	catch (const std::exception& Error)
@@ -238,6 +247,8 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	{
 		CppGenerator::ExecuteSDKCompilationTestScript();
 	}
+
+	return { ReflectionBefore, ReflectionAfter };
 }
 
 bool Generator::SetupDumperFolder()

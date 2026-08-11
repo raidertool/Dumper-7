@@ -47,10 +47,18 @@ private:
 	static inline bool bDumepdEditorOnlyMetadata = false;
 
 public:
+    struct SnapshotConsistency
+    {
+        uint64 Before = 0;
+        uint64 After = 0;
+
+        bool IsStable() const { return Before == After; }
+    };
+
     static void InitEngineCore();
     static void InitInternal();
 	static void ResetGenerationState(bool bWriteObjectDumps = true);
-	static void GenerateSnapshot(bool bGenerateCppSdk = true, bool bWriteObjectDumps = true);
+	static SnapshotConsistency GenerateSnapshot(bool bGenerateCppSdk = true, bool bWriteObjectDumps = true);
 
 private:
     static bool SetupDumperFolder();

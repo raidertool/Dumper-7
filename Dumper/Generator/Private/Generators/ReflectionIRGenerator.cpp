@@ -61,6 +61,21 @@ namespace
         });
     }
 
+    uint64 Fingerprint(const std::string& Value)
+    {
+        uint64 Hash = 0xCBF29CE484222325;
+        for (const unsigned char Byte : Value)
+        {
+            Hash ^= Byte;
+            Hash *= 0x100000001B3;
+        }
+        Hash ^= Hash >> 33;
+        Hash *= 0xFF51AFD7ED558CCD;
+        Hash ^= Hash >> 33;
+        Hash *= 0xC4CEB9FE1A85EC53;
+        return Hash ^ (Hash >> 33);
+    }
+
     nlohmann::json ObjectReference(const UEObject Object)
     {
         if (!Object)
@@ -439,7 +454,14 @@ namespace
 void ReflectionIRGenerator::Capture()
 {
     CapturedDocument.clear();
+    CapturedFingerprint = 0;
     strcpy_s(ReflectionIRCaptureContext, "initializing");
+
+    CppGenerator::PredefinedMembers.clear();
+    CppGenerator::PredefinedStructs.clear();
+    CppGenerator::InitPredefinedMembers();
+    CppGenerator::InitPredefinedFunctions();
+    MemberManager::SetPredefinedMemberLookupPtr(&CppGenerator::PredefinedMembers);
 
     nlohmann::json Packages = nlohmann::json::array();
     nlohmann::json Types = nlohmann::json::array();
@@ -505,6 +527,7 @@ void ReflectionIRGenerator::Capture()
     };
 
     CapturedDocument = Document.dump(-1, ' ', false, nlohmann::detail::error_handler_t::replace);
+    CapturedFingerprint = Fingerprint(CapturedDocument);
     strcpy_s(ReflectionIRCaptureContext, "complete");
 }
 
@@ -533,4 +556,12 @@ void ReflectionIRGenerator::Generate()
     Output << CapturedDocument;
     if (!Output)
         throw std::runtime_error("Could not write ReflectionIR.json");
+}
+
+uint64 ReflectionIRGenerator::GetCapturedFingerprint()
+{
+    if (CapturedDocument.empty() || CapturedFingerprint == 0)
+        throw std::runtime_error("Reflection IR was not captured before fingerprinting");
+
+    return CapturedFingerprint;
 }

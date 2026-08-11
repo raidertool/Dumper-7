@@ -29,10 +29,12 @@ public:
     static void Capture();
     static bool TryCapture(CaptureFailure* Failure);
     static void Generate();
+    static uint64 GetCapturedFingerprint();
 
     static void InitPredefinedMembers() { }
     static void InitPredefinedFunctions() { }
 
 private:
     static inline std::string CapturedDocument;
+    static inline uint64 CapturedFingerprint = 0;
 };
