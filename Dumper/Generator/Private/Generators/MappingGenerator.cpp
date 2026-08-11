@@ -254,10 +254,14 @@ void MappingGenerator::GeneratePropertyInfo(const PropertyWrapper& Property, std
 	Index += Property.GetArrayDim();
 }
 
-void MappingGenerator::GenerateStruct(const StructWrapper& Struct, std::stringstream& Data, std::stringstream& NameTable)
+bool MappingGenerator::GenerateStruct(const StructWrapper& Struct, std::stringstream& Data, std::stringstream& NameTable,
+	std::vector<int32>& ModulePathNameIndices)
 {
 	if (!Struct.IsValid())
-		return;
+		return false;
+
+	const int32 ModulePathNameIndex = AddNameToData(NameTable, Struct.GetUnrealStruct().GetOutermost().GetNameWithPath());
+	ModulePathNameIndices.push_back(ModulePathNameIndex);
 
 	const int32 StructNameIndex = AddNameToData(NameTable, Struct.GetRawName());
 	WriteToStream(Data, StructNameIndex);
@@ -304,10 +308,19 @@ void MappingGenerator::GenerateStruct(const StructWrapper& Struct, std::stringst
 
 		GeneratePropertyInfo(Member, Data, NameTable, IndexIncrementedByFunction);
 	}
+
+	return true;
 }
 
-void MappingGenerator::GenerateEnum(const EnumWrapper& Enum, std::stringstream& Data, std::stringstream& NameTable)
+bool MappingGenerator::GenerateEnum(const EnumWrapper& Enum, std::stringstream& Data, std::stringstream& NameTable,
+	std::vector<int32>& ModulePathNameIndices)
 {
+	if (!Enum.IsValid())
+		return false;
+
+	const int32 ModulePathNameIndex = AddNameToData(NameTable, Enum.GetUnrealEnum().GetOutermost().GetNameWithPath());
+	ModulePathNameIndices.push_back(ModulePathNameIndex);
+
 	const int32 EnumNameIndex = AddNameToData(NameTable, Enum.GetRawName());
 	WriteToStream(Data, EnumNameIndex);
 
@@ -319,6 +332,31 @@ void MappingGenerator::GenerateEnum(const EnumWrapper& Enum, std::stringstream& 
 		WriteToStream(Data, Member.GetValue());
 		WriteToStream(Data, EnumMemberNameIdx);
 	}
+
+	return true;
+}
+
+void MappingGenerator::GeneratePackagePathExtension(std::stringstream& Data,
+	const std::vector<int32>& EnumModulePathNameIndices, const std::vector<int32>& StructModulePathNameIndices)
+{
+	WriteToStream(Data, UsmapExtensionsMagic);
+	WriteToStream(Data, static_cast<uint8>(0));
+	WriteToStream(Data, static_cast<uint32>(1));
+
+	WriteToStream(Data, PpthExtensionId);
+	const uint32 ExtensionSize = sizeof(uint8)
+		+ sizeof(uint32) + static_cast<uint32>(EnumModulePathNameIndices.size() * sizeof(int32))
+		+ sizeof(uint32) + static_cast<uint32>(StructModulePathNameIndices.size() * sizeof(int32));
+	WriteToStream(Data, ExtensionSize);
+
+	WriteToStream(Data, static_cast<uint8>(0));
+	WriteToStream(Data, static_cast<uint32>(EnumModulePathNameIndices.size()));
+	for (const int32 ModulePathNameIndex : EnumModulePathNameIndices)
+		WriteToStream(Data, ModulePathNameIndex);
+
+	WriteToStream(Data, static_cast<uint32>(StructModulePathNameIndices.size()));
+	for (const int32 ModulePathNameIndex : StructModulePathNameIndices)
+		WriteToStream(Data, ModulePathNameIndex);
 }
 
 std::stringstream MappingGenerator::GenerateFileData()
@@ -326,6 +364,8 @@ std::stringstream MappingGenerator::GenerateFileData()
 	std::stringstream NameData;
 	std::stringstream StructData;
 	std::stringstream EnumData;
+	std::vector<int32> EnumModulePathNameIndices;
+	std::vector<int32> StructModulePathNameIndices;
 
 	uint32 NumEnums = 0x0;
 	uint32 NumStructsAndClasse = 0x0;
@@ -342,8 +382,8 @@ std::stringstream MappingGenerator::GenerateFileData()
 
 		for (int32 EnumIdx : Package.GetEnums())
 		{
-			GenerateEnum(ObjectArray::GetByIndex<UEEnum>(EnumIdx), EnumData, NameData);
-			NumEnums++;
+			if (GenerateEnum(ObjectArray::GetByIndex<UEEnum>(EnumIdx), EnumData, NameData, EnumModulePathNameIndices))
+				NumEnums++;
 		}
 	}
 	
@@ -359,8 +399,8 @@ std::stringstream MappingGenerator::GenerateFileData()
 
 		DependencyManager::OnVisitCallbackType GenerateStructCallback = [&](int32 Index) -> void
 		{
-			GenerateStruct(ObjectArray::GetByIndex<UEStruct>(Index), StructData, NameData);
-			NumStructsAndClasse++;
+			if (GenerateStruct(ObjectArray::GetByIndex<UEStruct>(Index), StructData, NameData, StructModulePathNameIndices))
+				NumStructsAndClasse++;
 		};
 
 		if (Package.HasStructs())
@@ -396,6 +436,8 @@ std::stringstream MappingGenerator::GenerateFileData()
 	/* Write Struct-count and enums */
 	WriteToStream(ReturnBuffer, static_cast<uint32>(NumStructsAndClasse));
 	WriteToStream(ReturnBuffer, StructData);
+
+	GeneratePackagePathExtension(ReturnBuffer, EnumModulePathNameIndices, StructModulePathNameIndices);
 
 	if constexpr (Settings::Debug::bShouldPrintMappingDebugData)
 		std::cerr << std::format("MappingGeneration: NumStructsAndClasse = 0x{0:X} (Dec: {0})\n\n", static_cast<uint32>(NumStructsAndClasse));

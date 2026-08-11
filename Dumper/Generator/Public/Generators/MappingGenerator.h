@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fstream>
+#include <vector>
 
 #include "Unreal/ObjectArray.h"
 #include "Wrappers/MemberWrappers.h"
@@ -58,6 +59,17 @@
 *         else if (MappingsTypeEnum == MapProperty)
 *             CALL ParsePropertyType;
 *             CALL ParsePropertyType;                       // <-- END ParsePropertyType, END ParsePropertyInfo, END ParseStruct
+*
+* uint32 ExtensionsMagic;                                  // "CEXT"
+* uint8 ExtensionsVersion;
+* uint32 ExtensionCount;
+* uint32 ExtensionId;                                      // "PPTH"
+* uint32 ExtensionSize;
+* uint8 PpthVersion;
+* uint32 EnumPathCount;
+* int32 EnumModulePathNameIndices[EnumPathCount];
+* uint32 StructPathCount;
+* int32 StructModulePathNameIndices[StructPathCount];
 */
 
 class MappingGenerator
@@ -91,6 +103,8 @@ private:
 
 private:
     static constexpr uint16 UsmapFileMagic = 0x30C4;
+    static constexpr uint32 UsmapExtensionsMagic = 0x54584543; // "CEXT"
+    static constexpr uint32 PpthExtensionId = 0x48545050;      // "PPTH"
 
 private:
     static inline uint64 NameCounter = 0x0;
@@ -126,8 +140,12 @@ private:
     static void GeneratePropertyType(UEProperty Property, std::stringstream& Data, std::stringstream& NameTable);
     static void GeneratePropertyInfo(const PropertyWrapper& Property, std::stringstream& Data, std::stringstream& NameTable, int32& Index);
 
-    static void GenerateStruct(const StructWrapper& Struct, std::stringstream& Data, std::stringstream& NameTable);
-    static void GenerateEnum(const EnumWrapper& Enum, std::stringstream& Data, std::stringstream& NameTable);
+    static bool GenerateStruct(const StructWrapper& Struct, std::stringstream& Data, std::stringstream& NameTable,
+        std::vector<int32>& ModulePathNameIndices);
+    static bool GenerateEnum(const EnumWrapper& Enum, std::stringstream& Data, std::stringstream& NameTable,
+        std::vector<int32>& ModulePathNameIndices);
+    static void GeneratePackagePathExtension(std::stringstream& Data, const std::vector<int32>& EnumModulePathNameIndices,
+        const std::vector<int32>& StructModulePathNameIndices);
 
     static std::stringstream GenerateFileData();
     static void GenerateFileHeader(StreamType& InUsmap, const std::stringstream& Data);
