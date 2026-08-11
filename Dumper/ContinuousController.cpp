@@ -123,6 +123,8 @@ namespace
 		const Generator::SnapshotConsistency& Consistency)
 	{
 		return Before.World == After.World
+			&& Before.Reflection.TypeCount == After.Reflection.TypeCount
+			&& Before.Reflection.Fingerprint == After.Reflection.Fingerprint
 			&& Consistency.IsStable();
 	}
 

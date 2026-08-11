@@ -161,8 +161,20 @@ Generator::SnapshotConsistency Generator::GenerateSnapshot(bool bGenerateCppSdk,
 		return ReflectionIRGenerator::GetCapturedFingerprint();
 	};
 
-	DumperSafety::SetStage("snapshot-capture-reflection-before");
-	const uint64 ReflectionBefore = CaptureReflection();
+	// Capture the deep reflection document once. It owns the exact C++ fragments and
+	// semantic data used by the post-capture pipeline; do not traverse reflection a
+	// second time after the generators have run.
+	DumperSafety::SetStage("snapshot-capture-reflection-ir");
+	const uint64 ReflectionSnapshot = CaptureReflection();
+	try
+	{
+		DumperSafety::SetStage("snapshot-write-reflection-ir");
+		Generate<ReflectionIRGenerator>();
+	}
+	catch (const std::exception& Error)
+	{
+		throw std::runtime_error(std::string("ReflectionIRGenerator failed: ") + Error.what());
+	}
 
 	if (bGenerateCppSdk)
 	{
@@ -226,17 +238,6 @@ Generator::SnapshotConsistency Generator::GenerateSnapshot(bool bGenerateCppSdk,
 	std::ofstream IdentityStream(DumperFolder / "ReflectionIdentities.json", std::ios::binary);
 	if (!IdentityStream || !(IdentityStream << IdentityManifest.dump(2) << '\n'))
 		throw std::runtime_error("Could not write ReflectionIdentities.json");
-	uint64 ReflectionAfter = 0;
-	try
-	{
-		DumperSafety::SetStage("snapshot-capture-reflection-after");
-		ReflectionAfter = CaptureReflection();
-		Generate<ReflectionIRGenerator>();
-	}
-	catch (const std::exception& Error)
-	{
-		throw std::runtime_error(std::string("ReflectionIRGenerator failed: ") + Error.what());
-	}
 	DumperSafety::SetStage("snapshot-complete");
 
 	auto DumpFinishTime = std::chrono::high_resolution_clock::now();
@@ -248,7 +249,7 @@ Generator::SnapshotConsistency Generator::GenerateSnapshot(bool bGenerateCppSdk,
 		CppGenerator::ExecuteSDKCompilationTestScript();
 	}
 
-	return { ReflectionBefore, ReflectionAfter };
+	return { ReflectionSnapshot, ReflectionSnapshot };
 }
 
 bool Generator::SetupDumperFolder()
