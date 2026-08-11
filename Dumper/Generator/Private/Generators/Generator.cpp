@@ -197,7 +197,18 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 		// Keep the existing generators at their proven timing. Reflection IR is a
 		// large owned export and must not extend their live-object race window.
 		DumperSafety::SetStage("snapshot-capture-reflection-ir");
-		ReflectionIRGenerator::Capture();
+		ReflectionIRGenerator::CaptureFailure Failure{};
+		if (!ReflectionIRGenerator::TryCapture(&Failure))
+		{
+			const char* AccessName = Failure.AccessKind == 0
+				? "read"
+				: Failure.AccessKind == 1 ? "write" : "execute";
+			std::ostringstream Message;
+			Message << "access violation while capturing " << Failure.Context
+				<< " at " << Failure.ExceptionAddress
+				<< " (" << AccessName << " access at " << Failure.AccessAddress << ')';
+			throw std::runtime_error(Message.str());
+		}
 		Generate<ReflectionIRGenerator>();
 	}
 	catch (const std::exception& Error)

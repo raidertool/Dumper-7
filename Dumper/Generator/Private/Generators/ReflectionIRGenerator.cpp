@@ -13,12 +13,45 @@
 
 #include <fstream>
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 #include <sstream>
 
 
 namespace
 {
     constexpr int32 ReflectionIRFormatVersion = 2;
+    thread_local char ReflectionIRCaptureContext[512] = "initializing";
+
+    void SetCaptureContext(const char* Kind, const int32 Index) noexcept
+    {
+        sprintf_s(ReflectionIRCaptureContext, "%s index %d", Kind, Index);
+    }
+
+    LONG HandleCaptureException(
+        EXCEPTION_POINTERS* Exception,
+        ReflectionIRGenerator::CaptureFailure* Failure) noexcept
+    {
+        if (!Exception || !Exception->ExceptionRecord
+            || Exception->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
+        {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+
+        if (Failure)
+        {
+            Failure->Code = Exception->ExceptionRecord->ExceptionCode;
+            Failure->ExceptionAddress = Exception->ExceptionRecord->ExceptionAddress;
+            if (Exception->ExceptionRecord->NumberParameters >= 2)
+            {
+                Failure->AccessKind = Exception->ExceptionRecord->ExceptionInformation[0];
+                Failure->AccessAddress = reinterpret_cast<const void*>(
+                    Exception->ExceptionRecord->ExceptionInformation[1]);
+            }
+            strcpy_s(Failure->Context, ReflectionIRCaptureContext);
+        }
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
 
     void SortByIdentity(nlohmann::json& Records)
     {
@@ -405,6 +438,9 @@ namespace
 
 void ReflectionIRGenerator::Capture()
 {
+    CapturedDocument.clear();
+    strcpy_s(ReflectionIRCaptureContext, "initializing");
+
     nlohmann::json Packages = nlohmann::json::array();
     nlohmann::json Types = nlohmann::json::array();
     nlohmann::json Enums = nlohmann::json::array();
@@ -414,6 +450,7 @@ void ReflectionIRGenerator::Capture()
         if (Package.IsEmpty())
             continue;
 
+        SetCaptureContext("package", Package.GetIndex());
         const UEObject PackageObject = ObjectArray::GetByIndex(Package.GetIndex());
         const auto [PackageName, PackageCollisionCount] = Package.GetNameCollisionPair();
         const DependencyInfo& Dependencies = Package.GetPackageDependencies();
@@ -433,10 +470,14 @@ void ReflectionIRGenerator::Capture()
         });
 
         for (const int32 EnumIndex : Package.GetEnums())
+        {
+            SetCaptureContext("enum", EnumIndex);
             Enums.push_back(EnumRecord(EnumWrapper(ObjectArray::GetByIndex<UEEnum>(EnumIndex))));
+        }
 
         const auto GenerateType = [&](const int32 Index)
         {
+            SetCaptureContext("type", Index);
             Types.push_back(StructRecord(StructWrapper(ObjectArray::GetByIndex<UEStruct>(Index))));
         };
 
@@ -464,6 +505,20 @@ void ReflectionIRGenerator::Capture()
     };
 
     CapturedDocument = Document.dump(-1, ' ', false, nlohmann::detail::error_handler_t::replace);
+    strcpy_s(ReflectionIRCaptureContext, "complete");
+}
+
+bool ReflectionIRGenerator::TryCapture(CaptureFailure* Failure)
+{
+    __try
+    {
+        Capture();
+        return true;
+    }
+    __except (HandleCaptureException(GetExceptionInformation(), Failure))
+    {
+        return false;
+    }
 }
 
 void ReflectionIRGenerator::Generate()
