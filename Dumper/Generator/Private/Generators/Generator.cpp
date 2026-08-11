@@ -178,7 +178,20 @@ void Generator::GenerateSnapshot(bool bGenerateCppSdk, bool bWriteObjectDumps)
 	try
 	{
 		DumperSafety::SetStage("snapshot-dumpspace");
-		Generate<DumpspaceGenerator>();
+		DumperSafety::ProtectedFailure Failure{};
+		if (!DumperSafety::TryExecute([]
+		{
+			Generate<DumpspaceGenerator>();
+		}, &Failure))
+		{
+			const char* AccessName = Failure.AccessKind == 0
+				? "read"
+				: Failure.AccessKind == 1 ? "write" : "execute";
+			std::ostringstream Message;
+			Message << "access violation at " << Failure.ExceptionAddress
+				<< " (" << AccessName << " access at " << Failure.AccessAddress << ')';
+			throw std::runtime_error(Message.str());
+		}
 	}
 	catch (const std::exception& Error)
 	{

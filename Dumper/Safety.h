@@ -8,6 +8,16 @@
 
 namespace DumperSafety
 {
+	struct ProtectedFailure
+	{
+		DWORD Code = 0;
+		const void* ExceptionAddress = nullptr;
+		ULONG_PTR AccessKind = 0;
+		const void* AccessAddress = nullptr;
+	};
+
+	using ProtectedCallback = void(*)();
+
 	inline thread_local const char* CurrentStage = "startup";
 	inline HANDLE ControlPipe = INVALID_HANDLE_VALUE;
 	inline char CrashLogPath[MAX_PATH] = "C:\\Dumper-7\\dumper-crash.log";
@@ -65,6 +75,44 @@ namespace DumperSafety
 	inline void ClearControlPipe() noexcept
 	{
 		ControlPipe = INVALID_HANDLE_VALUE;
+	}
+
+	inline LONG CaptureProtectedFailure(
+		EXCEPTION_POINTERS* Exception,
+		ProtectedFailure* Failure) noexcept
+	{
+		if (!Exception || !Exception->ExceptionRecord
+			|| Exception->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
+		{
+			return EXCEPTION_CONTINUE_SEARCH;
+		}
+
+		if (Failure)
+		{
+			Failure->Code = Exception->ExceptionRecord->ExceptionCode;
+			Failure->ExceptionAddress = Exception->ExceptionRecord->ExceptionAddress;
+			if (Exception->ExceptionRecord->NumberParameters >= 2)
+			{
+				Failure->AccessKind = Exception->ExceptionRecord->ExceptionInformation[0];
+				Failure->AccessAddress = reinterpret_cast<const void*>(
+					Exception->ExceptionRecord->ExceptionInformation[1]);
+			}
+		}
+
+		return EXCEPTION_EXECUTE_HANDLER;
+	}
+
+	inline bool TryExecute(ProtectedCallback Callback, ProtectedFailure* Failure)
+	{
+		__try
+		{
+			Callback();
+			return true;
+		}
+		__except (CaptureProtectedFailure(GetExceptionInformation(), Failure))
+		{
+			return false;
+		}
 	}
 
 	inline LONG HandleException(EXCEPTION_POINTERS* Exception) noexcept

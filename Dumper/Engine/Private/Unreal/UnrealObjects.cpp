@@ -12,7 +12,20 @@ void* UEFFieldClass::GetAddress()
 
 UEFFieldClass::operator bool() const
 {
-	return Class != nullptr;
+	if (!Class)
+		return false;
+
+	__try
+	{
+		const volatile EClassCastFlags CastFlags =
+			*reinterpret_cast<const EClassCastFlags*>(Class + Off::FFieldClass::CastFlags);
+		(void)CastFlags;
+		return true;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		return false;
+	}
 }
 
 EFieldClassID UEFFieldClass::GetId() const
@@ -219,7 +232,17 @@ std::string UEFField::GetCppName() const
 
 UEFField::operator bool() const
 {
-	return Field != nullptr && reinterpret_cast<void*>(Field + Off::FField::Class) != nullptr;
+	if (!Field)
+		return false;
+
+	__try
+	{
+		return *reinterpret_cast<void**>(Field + Off::FField::Class) != nullptr;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		return false;
+	}
 }
 
 bool UEFField::operator==(const UEFField& Other) const
@@ -867,21 +890,32 @@ EClassCastFlags UEProperty::GetCastFlags() const
 {
 	auto [Class, FieldClass] = GetClass();
 
-	return Class ? Class.GetCastFlags() : FieldClass.GetCastFlags();
+	if (Class)
+		return Class.GetCastFlags();
+	if (FieldClass)
+		return FieldClass.GetCastFlags();
+
+	return EClassCastFlags::None;
 }
 
 UEProperty::operator bool() const
 {
-	return Base != nullptr && ((Base + Off::UObject::Class) != nullptr || (Base + Off::FField::Class) != nullptr);
+	if (Settings::Internal::bUseFProperty)
+		return static_cast<bool>(UEFField(Base));
+
+	return static_cast<bool>(UEObject(Base));
 }
 
 
 bool UEProperty::IsA(EClassCastFlags TypeFlags) const
 {
-	if (GetClass().first)
-		return GetClass().first.IsType(TypeFlags);
+	auto [Class, FieldClass] = GetClass();
+	if (Class)
+		return Class.IsType(TypeFlags);
+	if (FieldClass)
+		return FieldClass.IsType(TypeFlags);
 
-	return GetClass().second.IsType(TypeFlags);
+	return false;
 }
 
 FName UEProperty::GetFName() const
