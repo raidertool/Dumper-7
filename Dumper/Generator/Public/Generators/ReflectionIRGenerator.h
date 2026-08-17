@@ -30,6 +30,7 @@ public:
     static bool TryCapture(CaptureFailure* Failure);
     static void Generate();
     static uint64 GetCapturedFingerprint();
+    static std::string GetPropertyCppType(UEProperty Property);
 
     static void InitPredefinedMembers() { }
     static void InitPredefinedFunctions() { }

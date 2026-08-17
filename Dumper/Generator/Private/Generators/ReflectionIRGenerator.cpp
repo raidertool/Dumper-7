@@ -28,6 +28,25 @@ namespace
         sprintf_s(ReflectionIRCaptureContext, "%s index %d", Kind, Index);
     }
 
+    void SetParameterCaptureContext(
+        const int32 TypeIndex,
+        const int32 FunctionIndex,
+        const int32 ParameterOrdinal,
+        const char* FunctionIdentity,
+        const char* ParameterName) noexcept
+    {
+        _snprintf_s(
+            ReflectionIRCaptureContext,
+            _countof(ReflectionIRCaptureContext),
+            _TRUNCATE,
+            "type index %d, function index %d (%s), parameter ordinal %d (%s)",
+            TypeIndex,
+            FunctionIndex,
+            FunctionIdentity,
+            ParameterOrdinal,
+            ParameterName);
+    }
+
     LONG HandleCaptureException(
         EXCEPTION_POINTERS* Exception,
         ReflectionIRGenerator::CaptureFailure* Failure) noexcept
@@ -114,7 +133,7 @@ namespace
         nlohmann::json Type = {
             { "property_class", Property.GetPropClassName() },
             { "cast_flags", static_cast<uint64>(Property.GetCastFlags()) },
-            { "cpp_type", Property.GetCppType() },
+            { "cpp_type", ReflectionIRGenerator::GetPropertyCppType(Property) },
             { "size", Property.GetSize() },
             { "alignment", Property.GetAlignment() },
             { "class", ObjectReference(Class) },
@@ -222,13 +241,25 @@ namespace
         };
     }
 
-    nlohmann::json FunctionRecord(const FunctionWrapper& WrappedFunction, const int32 Ordinal)
+    nlohmann::json FunctionRecord(
+        const FunctionWrapper& WrappedFunction,
+        const int32 TypeIndex,
+        const int32 Ordinal)
     {
         const UEFunction Function = WrappedFunction.GetUnrealFunction();
         nlohmann::json Parameters = nlohmann::json::array();
         int32 ParameterOrdinal = 0;
-        for (const PropertyWrapper& Parameter : WrappedFunction.GetMembers().IterateMembers())
+        const MemberManager FunctionMembers = WrappedFunction.GetMembers();
+        const std::string FunctionIdentity = Function.GetPathName();
+        for (const PropertyWrapper& Parameter : FunctionMembers.IterateMembers())
         {
+            const std::string ParameterName = Parameter.GetName();
+            SetParameterCaptureContext(
+                TypeIndex,
+                Function.GetIndex(),
+                ParameterOrdinal,
+                FunctionIdentity.c_str(),
+                ParameterName.c_str());
             if (!Parameter.IsUnrealProperty())
                 continue;
 
@@ -277,7 +308,7 @@ namespace
             if (Function.IsPredefined())
                 continue;
 
-            Functions.push_back(FunctionRecord(Function, FunctionOrdinal++));
+            Functions.push_back(FunctionRecord(Function, Struct.GetIndex(), FunctionOrdinal++));
         }
         SortByIdentity(Functions);
         for (int32 Ordinal = 0; Ordinal < static_cast<int32>(Functions.size()); ++Ordinal)
@@ -448,6 +479,12 @@ namespace
         });
         return Records;
     }
+}
+
+
+std::string ReflectionIRGenerator::GetPropertyCppType(const UEProperty Property)
+{
+    return CppGenerator::GetMemberTypeStringWithoutConst(Property);
 }
 
 
