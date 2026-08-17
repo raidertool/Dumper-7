@@ -619,7 +619,7 @@ std::string CppGenerator::GenerateFunctions(const StructWrapper& Struct, const M
 
 	const bool bIsNameUnique = Struct.GetUniqueName().second;
 
-	std::string Name = bIsNameUnique ? Struct.GetRawName() : Struct.GetFullName();
+	std::string Name = bIsNameUnique ? Struct.GetRawName() : Struct.GetUnrealStruct().GetPathName();
 	std::string NameText = CppSettings::XORString ? std::format("{}(\"{}\")", CppSettings::XORString, Name) : std::format("\"{}\"", Name);
 
 	if (bIsBPStaticClass)
@@ -627,14 +627,14 @@ std::string CppGenerator::GenerateFunctions(const StructWrapper& Struct, const M
 		StaticClass.Body = std::format(
 			R"({{
 	BP_STATIC_CLASS_IMPL{}({})
-}})", (bIsNameUnique ? "" : "_FULLNAME"), NameText);
+}})", (bIsNameUnique ? "" : "_PATHNAME"), NameText);
 	}
 	else
 	{
 		StaticClass.Body = std::format(
 R"({{
 	STATIC_CLASS_IMPL{}({})
-}})", (bIsNameUnique ? "" : "_FULLNAME"), NameText);
+}})", (bIsNameUnique ? "" : "_PATHNAME"), NameText);
 	}
 
 	/* ClassName always uses the short name, and it's a wide string for FString */
@@ -2392,10 +2392,10 @@ R"({
 	for (int i = 0; i < GObjects->Num(); ++i)
 	{
 		UObject* Object = GObjects->GetByIndex(i);
-	
+
 		if (!Object)
 			continue;
-		
+
 		if (Object->HasTypeFlag(RequiredType) && Object->GetFullName() == FullName)
 			return Object;
 	}
@@ -3627,15 +3627,24 @@ class FName;
 	BasicHpp << R"(
 namespace BasicFilesImplUtils
 {
+	struct NameIdentity
+	{
+		int32 ComparisonIndex;
+		)" << (Settings::Internal::bUseNamePool ? "uint32" : "int32") << R"( Number;
+
+		bool operator==(const NameIdentity&) const = default;
+	};
+
 	// Helper functions for GetStaticClass and GetStaticBPGeneratedClass
 	UClass* FindClassByName(const std::string& Name, bool bByFullName = false);
 	UClass* FindClassByFullName(const std::string& Name);
+	UClass* FindClassByPathName(const std::string& Name);
 
 	std::string GetObjectName(class UClass* Class);
 	int32 GetObjectIndex(class UClass* Class);
 
-	/* FName represented as a uint64. */
-	uint64 GetObjFNameAsUInt64(class UClass* Class);
+	NameIdentity GetObjFNameIdentity(class UClass* Class);
+	NameIdentity GetObjOutermostFNameIdentity(class UClass* Class);
 
 	UObject* GetObjectByIndex(int32 Index);
 
@@ -3658,6 +3667,27 @@ class UClass* BasicFilesImplUtils::FindClassByFullName(const std::string& Name)
 	return UObject::FindClass(Name);
 }
 
+class UClass* BasicFilesImplUtils::FindClassByPathName(const std::string& Name)
+{
+	for (int i = 0; i < UObject::GObjects->Num(); ++i)
+	{
+		UObject* Object = UObject::GObjects->GetByIndex(i);
+		if (!Object || !Object->HasTypeFlag(EClassCastFlags::Class))
+			continue;
+
+		std::string OuterPath;
+		for (UObject* Outer = Object->Outer; Outer; Outer = Outer->Outer)
+			OuterPath = Outer->Name.GetRawString() + "." + OuterPath;
+
+		const std::string PathName = Object->Class->Name.GetRawString()
+			+ " " + OuterPath + Object->Name.GetRawString();
+		if (PathName == Name)
+			return static_cast<UClass*>(Object);
+	}
+
+	return nullptr;
+}
+
 std::string BasicFilesImplUtils::GetObjectName(class UClass* Class)
 {
 	return Class->GetName();
@@ -3666,11 +3696,6 @@ std::string BasicFilesImplUtils::GetObjectName(class UClass* Class)
 int32 BasicFilesImplUtils::GetObjectIndex(class UClass* Class)
 {
 	return Class->Index;
-}
-
-uint64 BasicFilesImplUtils::GetObjFNameAsUInt64(class UClass* Class)
-{
-	return *reinterpret_cast<uint64*>(&Class->Name);
 }
 
 class UObject* BasicFilesImplUtils::GetObjectByIndex(int32 Index)
@@ -3707,6 +3732,18 @@ UObject* BasicFilesImplUtils::GetDefaultObjectImpl(UClass* Class)
 	return nullptr;
 }
 )";
+
+	BasicCpp << "\nBasicFilesImplUtils::NameIdentity BasicFilesImplUtils::GetObjFNameIdentity(class UClass* Class)\n"
+		"{\n\treturn { Class->Name.ComparisonIndex, "
+		<< (Settings::Internal::bUseOutlineNumberName ? "0" : "Class->Name.Number")
+		<< " };\n}\n\n"
+		"BasicFilesImplUtils::NameIdentity BasicFilesImplUtils::GetObjOutermostFNameIdentity(class UClass* Class)\n"
+		"{\n\tUObject* Outermost = Class;\n"
+		"\tfor (UObject* Outer = Class->Outer; Outer; Outer = Outer->Outer)\n"
+		"\t\tOutermost = Outer;\n\n"
+		"\treturn { Outermost->Name.ComparisonIndex, "
+		<< (Settings::Internal::bUseOutlineNumberName ? "0" : "Outermost->Name.Number")
+		<< " };\n}\n";
 
 	BasicHpp << R"(
 const FName& GetStaticName(const wchar_t* Name, FName& StaticName);
@@ -3746,15 +3783,15 @@ class UClass* GetStaticClassImpl(const char* Name, class UClass*& StaticClass)
 	/* Implementation of 'UObject::StaticClass()' for 'BlueprintGeneratedClass', templated to allow for a per-class local static class-index */
 	BasicHpp << R"(
 template<bool bIsFullName = false>
-class UClass* GetStaticBPGeneratedClass(const char* Name, int32& ClassIdx, uint64& ClassNameIdx)
+class UClass* GetStaticBPGeneratedClass(const char* Name, int32& ClassIdx, BasicFilesImplUtils::NameIdentity& ClassNameIdentity)
 {
 	/* Could be external function, not really unique to this StaticClass functon */
-	static auto SetClassIndex = [](UClass* Class, int32& Index, uint64& ClassName) -> UClass*
+	static auto SetClassIndex = [](UClass* Class, int32& Index, BasicFilesImplUtils::NameIdentity& ClassName) -> UClass*
 		{
 			if (Class)
 			{
 				Index = BasicFilesImplUtils::GetObjectIndex(Class);
-				ClassName = BasicFilesImplUtils::GetObjFNameAsUInt64(Class);
+				ClassName = BasicFilesImplUtils::GetObjFNameIdentity(Class);
 			}
 
 			return Class;
@@ -3764,29 +3801,60 @@ class UClass* GetStaticBPGeneratedClass(const char* Name, int32& ClassIdx, uint6
 	if constexpr (bIsFullName)
 	{
 		if (ClassIdx == 0x0) [[unlikely]]
-			return SetClassIndex(BasicFilesImplUtils::FindClassByFullName(Name), ClassIdx, ClassNameIdx);
+			return SetClassIndex(BasicFilesImplUtils::FindClassByFullName(Name), ClassIdx, ClassNameIdentity);
 
 		UClass* ClassObj = reinterpret_cast<UClass*>(BasicFilesImplUtils::GetObjectByIndex(ClassIdx));
 
 		/* Could use cast flags too to save some string comparisons */
-		if (!ClassObj || BasicFilesImplUtils::GetObjFNameAsUInt64(ClassObj) != ClassNameIdx)
-			return SetClassIndex(BasicFilesImplUtils::FindClassByFullName(Name), ClassIdx, ClassNameIdx);
+		if (!ClassObj || !(BasicFilesImplUtils::GetObjFNameIdentity(ClassObj) == ClassNameIdentity))
+			return SetClassIndex(BasicFilesImplUtils::FindClassByFullName(Name), ClassIdx, ClassNameIdentity);
 
 		return ClassObj;
 	}
 	else /* Default, use just the name to find an object*/
 	{
 		if (ClassIdx == 0x0) [[unlikely]]
-			return SetClassIndex(BasicFilesImplUtils::FindClassByName(Name), ClassIdx, ClassNameIdx);
+			return SetClassIndex(BasicFilesImplUtils::FindClassByName(Name), ClassIdx, ClassNameIdentity);
 
 		UClass* ClassObj = reinterpret_cast<UClass*>(BasicFilesImplUtils::GetObjectByIndex(ClassIdx));
 
 		/* Could use cast flags too to save some string comparisons */
-		if (!ClassObj || BasicFilesImplUtils::GetObjFNameAsUInt64(ClassObj) != ClassNameIdx)
-			return SetClassIndex(BasicFilesImplUtils::FindClassByName(Name), ClassIdx, ClassNameIdx);
+		if (!ClassObj || !(BasicFilesImplUtils::GetObjFNameIdentity(ClassObj) == ClassNameIdentity))
+			return SetClassIndex(BasicFilesImplUtils::FindClassByName(Name), ClassIdx, ClassNameIdentity);
 
 		return ClassObj;
 	}
+}
+)";
+
+	/* Path-qualified class lookup validates both the class and package identities. */
+	BasicHpp << R"(
+class UClass* GetStaticClassByPathImpl(const char* PathName, int32& ClassIdx, BasicFilesImplUtils::NameIdentity& ClassNameIdentity, BasicFilesImplUtils::NameIdentity& PackageNameIdentity)
+{
+	static auto SetClassIndex = [](UClass* Class, int32& Index, BasicFilesImplUtils::NameIdentity& ClassName, BasicFilesImplUtils::NameIdentity& PackageName) -> UClass*
+		{
+			if (Class)
+			{
+				Index = BasicFilesImplUtils::GetObjectIndex(Class);
+				ClassName = BasicFilesImplUtils::GetObjFNameIdentity(Class);
+				PackageName = BasicFilesImplUtils::GetObjOutermostFNameIdentity(Class);
+			}
+
+			return Class;
+		};
+
+	if (ClassIdx == 0x0) [[unlikely]]
+		return SetClassIndex(BasicFilesImplUtils::FindClassByPathName(PathName), ClassIdx, ClassNameIdentity, PackageNameIdentity);
+
+	UClass* ClassObj = reinterpret_cast<UClass*>(BasicFilesImplUtils::GetObjectByIndex(ClassIdx));
+	if (!ClassObj
+		|| !(BasicFilesImplUtils::GetObjFNameIdentity(ClassObj) == ClassNameIdentity)
+		|| !(BasicFilesImplUtils::GetObjOutermostFNameIdentity(ClassObj) == PackageNameIdentity))
+	{
+		return SetClassIndex(BasicFilesImplUtils::FindClassByPathName(PathName), ClassIdx, ClassNameIdentity, PackageNameIdentity);
+	}
+
+	return ClassObj;
 }
 )";
 
@@ -3812,18 +3880,34 @@ ClassType* GetDefaultObjImpl()
     return GetStaticClassImpl<true>(FullNameString, Clss); \
 }
 
+#define STATIC_CLASS_IMPL_PATHNAME(PathNameString) \
+{ \
+    static int32 ClassIdx = 0;                                  \
+    static BasicFilesImplUtils::NameIdentity ClassName{};       \
+    static BasicFilesImplUtils::NameIdentity PackageName{};     \
+    return GetStaticClassByPathImpl(PathNameString, ClassIdx, ClassName, PackageName); \
+}
+
 #define BP_STATIC_CLASS_IMPL(NameString) \
 { \
-    static int32 ClassIdx = 0;   \
-    static uint64 ClassName = 0; \
+    static int32 ClassIdx = 0;                            \
+    static BasicFilesImplUtils::NameIdentity ClassName{}; \
     return GetStaticBPGeneratedClass(NameString, ClassIdx, ClassName); \
 }
 
 #define BP_STATIC_CLASS_IMPL_FULLNAME(FullNameString) \
 { \
-    static int32 ClassIdx = 0;   \
-    static uint64 ClassName = 0; \
+    static int32 ClassIdx = 0;                            \
+    static BasicFilesImplUtils::NameIdentity ClassName{}; \
     return GetStaticBPGeneratedClass<true>(FullNameString, ClassIdx, ClassName); \
+}
+
+#define BP_STATIC_CLASS_IMPL_PATHNAME(PathNameString) \
+{ \
+    static int32 ClassIdx = 0;                                  \
+    static BasicFilesImplUtils::NameIdentity ClassName{};       \
+    static BasicFilesImplUtils::NameIdentity PackageName{};     \
+    return GetStaticClassByPathImpl(PathNameString, ClassIdx, ClassName, PackageName); \
 }
 
 #define STATIC_NAME_IMPL(NameString) \
