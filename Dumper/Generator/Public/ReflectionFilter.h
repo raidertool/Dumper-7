@@ -18,5 +18,7 @@ namespace ReflectionFilter
 	bool ShouldExcludeProperty(UEProperty Property);
 
 	const std::vector<std::string>& GetIncludedClassIdentities();
+	const std::vector<std::string>& GetIncludedStructIdentities();
+	const std::vector<std::string>& GetIncludedEnumIdentities();
 	std::string GetReportLine();
 }
