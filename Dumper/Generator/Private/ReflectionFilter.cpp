@@ -24,6 +24,8 @@ namespace
 	std::unordered_set<std::string> ExactIdentities;
 	std::unordered_set<int32> ExcludedObjectIndices;
 	std::vector<std::string> IncludedClassIdentities;
+	std::vector<std::string> IncludedStructIdentities;
+	std::vector<std::string> IncludedEnumIdentities;
 	std::string ConfigurationSha256;
 	FilterReport Report;
 
@@ -191,19 +193,35 @@ void ReflectionFilter::Refresh()
 {
 	ExcludedObjectIndices.clear();
 	IncludedClassIdentities.clear();
+	IncludedStructIdentities.clear();
+	IncludedEnumIdentities.clear();
 	Report = {};
 	Report.Configured = ExactIdentities.size();
 
 	std::unordered_map<std::string, UEObject> ObservedClasses;
+	std::unordered_map<std::string, UEObject> ObservedStructs;
+	std::unordered_map<std::string, UEObject> ObservedEnums;
 	const auto ObserveClass = [&](const UEObject Object)
 	{
 		if (Object && Object.IsA(EClassCastFlags::Class))
 			ObservedClasses.try_emplace(GetIdentity(Object), Object);
 	};
+	const auto ObserveStandaloneReflection = [&](const UEObject Object)
+	{
+		if (!Object)
+			return;
+		if (Object.IsA(EClassCastFlags::Enum))
+			ObservedEnums.try_emplace(GetIdentity(Object), Object);
+		else if (Object.IsA(EClassCastFlags::Struct)
+			&& !Object.IsA(EClassCastFlags::Class)
+			&& !Object.IsA(EClassCastFlags::Function))
+			ObservedStructs.try_emplace(GetIdentity(Object), Object);
+	};
 	for (const UEObject Object : ObjectArray())
 	{
 		ObserveClass(Object);
 		ObserveClass(Object.GetClass());
+		ObserveStandaloneReflection(Object);
 	}
 
 	if (ExactIdentities.empty())
@@ -212,6 +230,14 @@ void ReflectionFilter::Refresh()
 		for (const auto& [Identity, _] : ObservedClasses)
 			IncludedClassIdentities.push_back(Identity);
 		std::ranges::sort(IncludedClassIdentities);
+		IncludedStructIdentities.reserve(ObservedStructs.size());
+		for (const auto& [Identity, _] : ObservedStructs)
+			IncludedStructIdentities.push_back(Identity);
+		std::ranges::sort(IncludedStructIdentities);
+		IncludedEnumIdentities.reserve(ObservedEnums.size());
+		for (const auto& [Identity, _] : ObservedEnums)
+			IncludedEnumIdentities.push_back(Identity);
+		std::ranges::sort(IncludedEnumIdentities);
 		return;
 	}
 
@@ -279,6 +305,20 @@ void ReflectionFilter::Refresh()
 			IncludedClassIdentities.push_back(Identity);
 	}
 	std::ranges::sort(IncludedClassIdentities);
+	IncludedStructIdentities.reserve(ObservedStructs.size());
+	for (const auto& [Identity, Object] : ObservedStructs)
+	{
+		if (!ExcludedObjectIndices.contains(Object.GetIndex()))
+			IncludedStructIdentities.push_back(Identity);
+	}
+	std::ranges::sort(IncludedStructIdentities);
+	IncludedEnumIdentities.reserve(ObservedEnums.size());
+	for (const auto& [Identity, Object] : ObservedEnums)
+	{
+		if (!ExcludedObjectIndices.contains(Object.GetIndex()))
+			IncludedEnumIdentities.push_back(Identity);
+	}
+	std::ranges::sort(IncludedEnumIdentities);
 
 	if (Report.Unmatched != 0)
 	{
@@ -339,6 +379,16 @@ bool ReflectionFilter::ShouldExcludeProperty(const UEProperty Property)
 const std::vector<std::string>& ReflectionFilter::GetIncludedClassIdentities()
 {
 	return IncludedClassIdentities;
+}
+
+const std::vector<std::string>& ReflectionFilter::GetIncludedStructIdentities()
+{
+	return IncludedStructIdentities;
+}
+
+const std::vector<std::string>& ReflectionFilter::GetIncludedEnumIdentities()
+{
+	return IncludedEnumIdentities;
 }
 
 std::string ReflectionFilter::GetReportLine()

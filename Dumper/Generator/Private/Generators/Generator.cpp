@@ -193,8 +193,10 @@ Generator::SnapshotConsistency Generator::GenerateSnapshot(bool bGenerateCppSdk,
 	}
 	DumperSafety::SetStage("snapshot-reflection-identities");
 	const nlohmann::json IdentityManifest{
-		{"schema_version", 1},
+		{"schema_version", 2},
 		{"classes", ReflectionFilter::GetIncludedClassIdentities()},
+		{"structs", ReflectionFilter::GetIncludedStructIdentities()},
+		{"enums", ReflectionFilter::GetIncludedEnumIdentities()},
 	};
 	std::ofstream IdentityStream(DumperFolder / "ReflectionIdentities.json", std::ios::binary);
 	if (!IdentityStream || !(IdentityStream << IdentityManifest.dump(2) << '\n'))
